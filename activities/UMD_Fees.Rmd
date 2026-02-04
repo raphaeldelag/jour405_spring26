@@ -27,13 +27,31 @@ umd_fees <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/hea
 umd_fees_pct <- umd_fees |> mutate(pct_change = (`Fall 2024`- `Fall 2021`)/`Fall 2021` * 100)
 ```
 
+```{r}
+umd_fees |> mutate(pct_change = (`Fall 2025`- `Fall 2024`)/`Fall 2024` * 100)
+
+```
+
 
 
 ### Task 4: Describe our results
 
+```{r}
+comp <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/class_composition.csv")
+
+comp |>
+  summarize(
+    mean_first = mean(first_year),
+    mean_soph = mean(sophomore),
+    mean_junior = mean(junior),
+    mean_senior = mean(senior),
+    mean_grad = mean(grad)
+  )
+```
+
 Write a few sentences about what you found in the data. What's the story here?
 
-
+The most interesting percent change to me from the university fees is on the "Student Counseling Center" which did not exist in 2021 and by 2024 it makes up just shy of 3 percent of the total student fees that year. When looking at the year over year percent change from 2024 to 2025, the cost for the counseling center has increased by 4 percent, so not the most shocking change. The most clear percent increase is on the cost for "Student Sustainability" which has increased by about 150 percent. 
 
 
 
