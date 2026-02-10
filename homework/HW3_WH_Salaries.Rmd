@@ -1,6 +1,7 @@
 ---
 title: "HW3 WH Salaries"
 ---
+Student name: Raphael Romero Ruiz
 
 In this assignment, we will be working with a dataset containing information about the salaries of White House staffers as of July 2025.
 
@@ -9,6 +10,7 @@ In this assignment, we will be working with a dataset containing information abo
 You will need to load the tidyverse library
 
 ```{r}
+library(tidyverse)
 ```
 
 Then you'll load the data from the web. The URL for the data is: https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/white_house_salaries_2025.csv. You will create a dataframe called `wh_salaries` that contains the data from this URL.
@@ -16,19 +18,21 @@ Then you'll load the data from the web. The URL for the data is: https://raw.git
 ### Task 2: Load the Data and Describe It
 
 ```{r}
+wh_salaries <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/white_house_salaries_2025.csv")
 ```
 ### Task 3: Describe the Data
 
 You should examine that dataframe carefully by clicking on it in the Environment tab in RStudio. Write a couple of sentences describing the categories of incidents. From a reporting standpoint, what stands out to you about this data? Are there any salary values that will cause problems for analysis?
 
-ANSWER HERE
+The White House dataset gives us a snapshot of more than 400 White House staffers with five columns giving us details including: name, status, salary, pay basis, and position title. The thing that stood out the most to me was the group of eight high-profile appointees listed with a $0.00 salary. This list includes Marco Rubio, who serves as both the Secretary of State and the National Security Advisor, and David Sacks, the AI and Crypto Czar. These zero-dollar entries don't necessarily mean that the individual is not earning any income, but rather reflect a unique category of service — Rubio is paid through the State Department, while Sacks serves as a "Special Government Employee." For the purposes of our analysis, these entries are outliers that would artificially lower the average salary if not handled separately.
 
 ### Task 4: Calculate the Mean and Median of the Salaries
 
 Write code to calculate the mean and median of the salaries in the dataset using the `summarize()` function. You don't need to make a new dataframe, just display the results.
 
 ```{r}
-
+wh_salaries |>
+  summarize(mean_salary = mean(SALARY), median_salary = median(SALARY))
 ```
 
 ### Task 5: Add in the minimum and maximum salaries
@@ -36,17 +40,25 @@ Write code to calculate the mean and median of the salaries in the dataset using
 Take the code you just wrote and add in the minimum and maximum salaries (the functions for that are `min()` and `max()`). Your results should show four columns: mean_salary, median_salary, min_salary, max_salary.
 
 ```{r}
-
+wh_salaries |>
+  summarize(
+    mean_salary = mean(SALARY),
+    median_salary = median(SALARY),
+    min_salary = min(SALARY),
+    max_salary = max(SALARY)
+  )
 ```
 
 ### Task 6: Describe the Results
 
 Write a couple of sentences describing the results of your analysis. What do the mean and median salaries tell you about the data? What do the minimum and maximum salaries tell you? Are there any outliers in the data?
 
-ANSWER HERE
+The White House payroll is slightly right-skewed, with a mean salary of about $109,000 and a median of $101,500, which clues me in that there a small number of top-tier earners that are pulling the average upward. The distribution of pay is defined by its extremes: the $0 minimum represents the eight unpaid advisors while the $225,700 maximum belongs to an advisor serving as a detailee. While most staffers earn between $65,500 and $121,500, a specialized group of senior counselors and tech advisors earn upwards of $195,000, significantly more than the typical White House employee.
 
 ### Task 7: Story Idea
 
 Based on the data, what is your best story idea? What is the next step you would take to develop that story idea?
 
-ANSWER HERE
+The Story: I want to investigate the "unpaid" power players at the top of the administration, specifically focusing on the eight officials—like Marco Rubio and David Sacks—who are serving for $0.
+
+The Strategy: I think the next step would involve acquiring financial disclosure forms and mapping out outside income sources and potential business interests. Since some of these roles, particularly the "czar" positions, are held by individuals from the private sector, this investigation would explore potential conflicts of interest and the transparency of "Special Government Employee" statuses. This story would address the critical question of whether these top-tier government roles are becoming accessible only to the independently wealthy and what that means for public accountability.
