@@ -32,11 +32,15 @@ team_aces <- matches |>
 team_aces |> mutate(percentile = ntile(total_aces, 100))
 ```
 
+```{r}
+summary(team_aces$total_aces)
+```
 
 ### Task 5: Describe the percentiles
 
 Write a couple of sentences that puts Maryland into context with the other teams in the dataset. You can do some Internet research to help with this.
 
+With the exception of Pittsburgh (who ranked third best women's NCAA volleyball team in 2024), the Maryland team had more aces than the the top three teams including, the champions that year, Penn State and the team they beat, Louisville. For some perspective, Maryland didn't even make it to the first round of the tournament that year. As a matter of fact looking at the teams who ranked in the top percentile for aces that season, did not all make it to the tournament that year including Sac St. and Mercer and Sacramento State, who did make it to the tournament was knocked out in the first round by a team that only got 191 aces. Creighton who had just one more ace than Maryland in 2024 managed to make it all the way to the final four but was ultimately defeated by Penn State, who again, recorded less aces, at least 20 fewer. 
 
 
 When you are done, save your work, switch to GitHub Desktop, then add, commit and push your changes to GitHub and submit the URL of the notebook in ELMS.
