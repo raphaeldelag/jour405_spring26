@@ -17,14 +17,16 @@ library(janitor)
 ### Task 2: Load the crime dataset from https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/md_annual_crime.csv
 
 ```{r}
-crimes <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/md_annual_crime.csv") |> clean_names()
+crimes <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/md_annual_crime.csv")
 ```
 
 
 ### Task 3: Use janitor to clean up the column names
 
-
-
+```{r}
+crimes <- crimes %>%
+  clean_names()
+```
 ### Task 4: Calculate the total crime rate for each year (picking our unit!)
 
 ```{r}
@@ -45,7 +47,7 @@ crimes_with_rates <- crimes |> mutate(violent_rate = violent_crime_total/populat
 
 Write a few sentences about what you found in the data. What years had the highest crime rates? What years had the lowest crime rates? Does the pattern match your expectations?
 
-
+I was curious about how the violent crime rate fared in Maryland across the 45 year timeline of crime figures we have and I was not surprised to find that more than half of the decade of the 1990s was represented in the top ten most violent years per capita. And when looking into the years with the highest raw number of murders, the rankings don't seem all that different which explains in part why these years hover over the over the 90 per 10k mark. I was also not surprised to see that some of the lowest violent crime rates happened in recent history as that matches our understanding of how the total crime rate has dropped dramatically. 
 
 
 When you are done, save your work, switch to GitHub Desktop, then add, commit and push your changes to GitHub and submit the URL of the notebook in ELMS.
