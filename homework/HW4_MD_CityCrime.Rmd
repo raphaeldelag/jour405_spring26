@@ -9,6 +9,8 @@ In this assignment, we will be working with a dataset of total crimes reported b
 You will need to load the tidyverse library and the janitor library
 
 ```{r}
+library(tidyverse)
+library(janitor)
 ```
 
 Then you'll load the data from the web. The URL for the data is: https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/md_cities_crime_2019_2020.csv. You will create a dataframe called `md_cities` that contains the data from this URL.
@@ -16,19 +18,31 @@ Then you'll load the data from the web. The URL for the data is: https://raw.git
 ### Task 2: Load the Data
 
 ```{r}
+md_cities <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/md_cities_crime_2019_2020.csv")
 ```
 ### Task 3: Calculating Rates
 
 Calculate violent and property crime rates for each city for both years using `mutate()`. You'll create four new columns: `violent_rate_2019`, `property_rate_2019`, `violent_rate_2020`, and `property_rate_2020`. You'll need to figure out the proper unit rate, given that there are varying populations. There's no perfect choice; choose the one that works best for you. Save the results to a new dataframe called `md_cities_rates`.
 
 ```{r}
+md_cities_rates <- md_cities |>
+  mutate(
+    violent_rate_2019 = (violent2019 / pop2019) * 1000,
+    property_rate_2019 = (property2019 / pop2019) * 1000,
+    violent_rate_2020 = (violent2020 / pop2020) * 1000,
+    property_rate_2020 = (property2020 / pop2020) * 1000
+  ) %>% 
+select(city,violent_rate_2019,violent_rate_2020,property_rate_2019,property_rate_2020)
 ```
 
 ### Task 4: Describe the Rates
 
 Examine the new dataframe, `md_cities_rates`, by clicking on it in the Environment tab in RStudio and sorting by the rate columns. Write a couple of sentences about the results, comparing and contrasting the cities with the highest rates (both violent and property) in 2019 and 2020. Do you see any patterns? What does this tell you about crime in Maryland cities? What's the story here?
 
-ANSWER HERE
+
+Maryland's rate of crime in either property or violent crimes is topped by Ocean City. It seems like this vacation town along this Eastern Shore town. Baltimore, which led violent crime in 2019 at 18.3 per 1,000, actually dropped to 16.0 in 2020, a surprising reversal that defies the typical That year the city was superseded by Ocean City in the violent crime rate, surging from 13.1 to nearly 24.0 per 1,000. More smaller towns in the state The rest of the data reveals that smaller municipalities that could be economically struggling towns like Cambridge, Elkton, and Salisbury—often face crime rates that rival or exceed those of Maryland's largest city. I think joining this with more census data could help drive a story about how population size alone doesn't predict public safety challenges and instead should be seen through intersectional lens.  
+
+
 
 
 ### Task 5: Calculate Percentage Change
@@ -36,19 +50,26 @@ ANSWER HERE
 Let's add two percentage change columns to your dataframe: one for violent crime rates and one for property crime rates. You'll calculate the percentage change between 2019 and 2020 for each city. Save the results to a new dataframe called `md_cities_change`.
 
 ```{r}
+md_cities_change <- md_cities_rates |>
+  mutate(
+    violent_pct_change = ((violent_rate_2020 - violent_rate_2019) / violent_rate_2019) * 100,
+    property_pct_change = ((property_rate_2020 - property_rate_2019) / property_rate_2019) * 100
+  )
 ```
 
 ### Task 7: Describe Percentage Changes
 
 Look at the `md_cities_change` dataframe by clicking on it in the Environment tab in RStudio. Write a couple of sentences describing the percentage change results. What's more interesting here, the patterns or the outliers? What's the story in the data?
 
-ANSWER HERE
+The percentage swings in towns noted earlier for the small population sizes, like for example Edmonston, was the most compelling result. The town is geographically closer to the District of Columbia than the rest of Maryland and saw violent crime spike 895%. Again, Ocean City showed up on the radar with a 83% surge in violent crime (from 13.1 to 24.0 per 1,000) and Baltimore's counterintuitive 12.9% decline in violent crime during 2020. This is also notably a pandemic year where in other city environments violent crimes rose, like murder, rose across th country. The percentage changes expose how crime statistics in small municipalities can be misleading: a single robbery in a town of 200 people creates a mathematical crisis on paper, while the real story lies in places like Ocean City where absolute numbers and rates both tell a consistent tale of deteriorating public safety.
 
 ### Task 8: Tell the Best Story
 
 Write up a lede and nutgraf of a story with the _best_ story idea you've found in this assignment. The lede should be a single sentence that summarizes the most important information in the data. The nutgraf should be a paragraph that provides more context and explains why the data is important.
 
-ANSWER HERE
+Lede: A dramatic shift in Maryland’s crime landscape occurred in 2020, as Ocean City overtook Baltimore for the state's highest violent crime rate following an 83% spike in offenses.
+
+Nutgraf: According to state data, the town’s violent crime rate climbed from 13.1 to 24.0 incidents per 1,000 residents last year, while property crime rates hit 121 per 1,000—more than double that of any other Maryland municipality. The figures upends previous notions that urban centers bear the state's heaviest public safety burden, raising questions about how seasonal tourism strain local law enforcement. As Baltimore implemented community policing reforms and saw violent crime decline during the pandemic, Ocean City's public safety crisis went largely unnoticed, suggesting that the state's crime policy discussions may be focused on the wrong jurisdictions. The data suggests a quiet but acute safety crisis has emerged on the coast.
 
 ### Task 9: Save Your Work and Put it on GitHub
 
