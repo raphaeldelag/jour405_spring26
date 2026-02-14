@@ -65,7 +65,7 @@ The percentage swings in towns noted earlier for the small population sizes, lik
 
 ### Task 8: Tell the Best Story
 
-Write up a lede and nutgraf of a story with the _best_ story idea you've found in this assignment. The lede should be a single sentence that summarizes the most important information in the data. The nutgraf should be a paragraph that provides more context and explains why the data is important.
+Write up a lede and nutgraf of a story with the best story idea you've found in this assignment. The lede should be a single sentence that summarizes the most important information in the data. The nutgraf should be a paragraph that provides more context and explains why the data is important.
 
 Lede: A dramatic shift in Maryland’s crime landscape occurred in 2020, as Ocean City overtook Baltimore for the state's highest violent crime rate following an 83% spike in offenses.
 
@@ -74,3 +74,73 @@ Nutgraf: According to state data, the town’s violent crime rate climbed from 1
 ### Task 9: Save Your Work and Put it on GitHub
 
 Save this notebook, then commit it to your local repository. Push the changes to your GitHub repository and submit the URL for this file in ELMS.
+
+### Task 10: Statistical Analysis of 2020 Violent Crime Rates
+
+Using the 2020 violent crime rate, calculate the percentiles using `ntile()`. Save the results to a new dataframe called `md_cities_percentiles`.
+
+```{r}
+md_cities_percentiles <- md_cities_rates |>
+  mutate(percentile = ntile(violent_rate_2020, 100)) |>
+  arrange(desc(percentile))
+```
+
+How many cities are above the 90th percentile?
+
+```{r}
+md_cities_percentiles |>
+  filter(percentile > 90)
+```
+
+Calculate the Interquartile Range of the 2020 violent crime rate using `summarize()` and R's `IQR()` function.
+
+```{r}
+md_cities_rates |>
+  summarize(
+    violent_rate_iqr = IQR(violent_rate_2020)
+  )
+```
+
+Do the results change your best story idea from the previous assignment? Why or why not?
+
+I think this analysis actually strengthens the original story angle rather than changing it. Ranking the violent crime rates by percentile confirms that Ocean City isn't just marginally higher—it's a genuine geographic outlier.
+
+While ten cities fall above the 90th percentile, Ocean City’s rate of 24 per 1,000 puts it in a whole different category. It’s nearly 8 points higher than even Baltimore at 16. I created a horizontal bar chart with the help of Claude to visualize the comparison and you can see how different Ocean City is to the rest.
+
+The Interquartile Range of 4.2 really puts that in perspective: it tells us that the middle 50% of Maryland cities cluster within a pretty narrow band. Ocean City’s gap above Baltimore is almost double that entire middle spread, which validates the thesis that the state's most acute violent crime problem has shifted from the urban center to the coast.
+
+From here, I think the next logical step is to dig into the actual composition of that rate. I’d want to look at a more detailed spread of the charges coming out of the local law enforcement arrest data. Understanding the specific nature of those charges feels like the only way to accurately characterize what "danger" really looks like in a beach town versus a major city.
+
+
+```{r}
+# Top 10 cities comparison with rounded numbers
+top_10 <- md_cities_rates %>%
+  arrange(desc(violent_rate_2020)) %>%
+  slice(1:10) %>%
+  mutate(rate_rounded = round(violent_rate_2020),
+         highlight = case_when(
+           city == "Ocean City" ~ "Ocean City",
+           city == "Baltimore" ~ "Baltimore",
+           TRUE ~ "Other"
+         ))
+
+ggplot(top_10, aes(x = reorder(city, violent_rate_2020),
+                   y = rate_rounded, fill = highlight)) +
+  geom_col(width = 0.7, alpha = 0.9) +
+  geom_text(aes(label = rate_rounded),
+            hjust = -0.2, size = 4, fontface = "bold") +
+  scale_fill_manual(values = c("Ocean City" = "red",
+                                "Baltimore" = "darkblue",
+                                "Other" = "steelblue"),
+                    guide = "none") +
+  coord_flip() +
+  labs(title = "Top 10 Cities by Violent Crime Rate",
+       subtitle = "Ocean City leads with 24 per 1,000, 8 points above Baltimore",
+       x = "", y = "Violent Crime Rate (per 1,000 residents)",
+       caption = "Note: Rates rounded to nearest whole number") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        axis.text.y = element_text(size = 10, face = "bold"),
+        plot.caption = element_text(hjust = 0, face = "italic", size = 9)) +
+  ylim(0, 26)
+```
