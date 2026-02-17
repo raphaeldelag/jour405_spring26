@@ -46,6 +46,7 @@ car_thefts |>
 
 Is the distribution normal or skewed in one direction? Write a sentence in which you describe the range of the data covered by one standard deviation from the mean on both sides - how much of the data falls in that range?
 
+The general shape of the curve is there for this to be considered normally distributed, though it could be argued that the drop off to the right of the data could be too steep and cause for the data to be considered otherwise. A considerable count also falls well to the right of the mean.Because of that my non-binary answer is at 75%. 
 
 
 When you are done, save your work, switch to GitHub Desktop, then add, commit and push your changes to GitHub and submit the URL of the notebook in ELMS.
