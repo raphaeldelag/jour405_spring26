@@ -7,11 +7,13 @@ In this assignment, you will be working with a dataset of songs played on Spotif
 ### Task 1: Load the tidyverse
 
 ```{r}
+library(tidyverse)
 ```
 
 ### Task 2: Load the Spotify Songs dataset from https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/spotify_2020.csv
 
 ```{r}
+spotify_songs <- read.csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/spotify_2020.csv")
 ```
 
 ### Task 3: Calculate the mean and standard deviation of the danceability scores
@@ -19,6 +21,11 @@ In this assignment, you will be working with a dataset of songs played on Spotif
 Write code to calculate the mean standard deviation of the danceability scores in the Spotify dataset. Display those.
 
 ```{r}
+mean_danceability <- mean(spotify_songs$danceability)
+sd_danceability <- sd(spotify_songs$danceability)
+
+mean_danceability
+sd_danceability
 ```
 
 ### Task 4: Create a histogram of the danceability scores
@@ -26,6 +33,7 @@ Write code to calculate the mean standard deviation of the danceability scores i
 Write code to create a histogram of the danceability scores in the Spotify dataset, based on the example we did in class.
 
 ```{r}
+hist(spotify_songs$danceability)
 ```
 
 ### Task 5: Add a line to the histogram for the mean danceability score
@@ -33,11 +41,15 @@ Write code to create a histogram of the danceability scores in the Spotify datas
 Write code to add a vertical line to the histogram for the mean danceability score, based on the example in class.
 
 ```{r}
+hist(spotify_songs$danceability) 
+abline(v = mean_danceability, col = "red", lwd = 2)
 ```
 
 ### Task 6: Describe our results
 
 Write a few sentences about the distribution of danceability scores in the Spotify dataset. Is it a normal distribution, or is it skewed in one direction? What does the mean and distribution tell us about the songs in the dataset?
+
+The 2020 Spotify dataset shows us that danceability scores are notably left-skewed, which means there were more songs with higher danceability with just a few that scored lower. With an average score of 0.67, it’s clear that most tracks are more on the upbeat side. The standard deviation of 0.16 indicates that there’s a moderate amount of consistency, with many songs clustering in the higher range of danceability. Overall, this suggests that energetic and rhythmic music was a big favorite among listeners and dominated the charts in 2020. I guess the pandemic had us all dancing in our living rooms!
 
 ### Task 7: Save Your Work and Put it on GitHub
 
