@@ -75,7 +75,11 @@ ggplot(accidents, aes(x = date, y = total)) +
 ### Task 1 (3 points)
 Looking at the time series visualization above, identify at least two noticeable patterns or anomalies. What questions would you want to investigate further based on this initial view of the data? How might these visual patterns translate into potential story angles?
 
-ANSWER HERE
+Two patterns immediately jump out to me from the time series. The most dramatic is the big dip in early 2020 when daily accidents in Prince George's County shot down to near zero in March and April 2020. I think a certain global pandemic may have something to do with it. But also what I find interesting is that immediately after in the post-pandemic recovery years. They seem to run hotter than the pre-pandemic baseline, with more frequent high-accident days visible in the scatter.
+
+The second pattern is this sort of noisy pattern throughout the series. There seems to be a series of spikes and dips strung through the entire length. 
+
+So here are my two questions: (1) What's up with the post-2020 higher baseline statistically? Should we know more about about the granular trends, like locations? (2) What type of crash distribution is causing so many spikes and crashes? I think the following chunk help see why. 
 
 The daily data is quite noisy, so let's also look at weekly patterns:
 
@@ -114,7 +118,9 @@ ggplot(accidents, aes(x = day_of_week, y = total)) +
 ### Task 2 (2 points)
 Based on the day-of-week analysis, which day(s) have the highest and lowest average accidents? Why might these patterns exist?
 
-ANSWER HERE
+We have a very clear situation happening in the data. It's Friday! The day-of-week table shows how the highest average of accidents at 27.96 per day happens on Fridays and Saturdays as a close second at 27.71. People are going to be out on the town these days and they are going to be driving. Also drinking and driving. Then Sunday comes. But it's funny how it remains elevated still, higher than any weekday. 
+
+The midweek slump also supports the premise that the weekend is part of the reason this pattern exists.Wednesday is technically the lowest, at 22.91. Monday and Tuesday are the same story averaging no more than 23.
 
 ## Calculating Z-Scores
 
@@ -161,7 +167,11 @@ unusual_days |>
 ### Task 3 (3 points)
 Choose one of the top 10 unusual days and research what might have happened on that date. Look for weather events, holidays, major incidents, or other factors that could explain the unusual number of accidents. Briefly describe your findings and how you would incorporate this context into a story.
 
-ANSWER HERE
+I started look at the news for November 29, 2021, which recorded only 1 total accident. This is the third most extreme outlier in the entire dataset with a z-score of -3.42. This was the Monday after Thanksgiving weekend, and the near-total absence of accidents countywide is so crazy. Even during peak COVID lockdown in April 2020, PG County typically recorded 3–5 accidents per day. One accident across an entire county suggests something completely shut down normal road activity.
+
+A quick googling tells me this was maybe due to a severe ice or snow storm that hit the DC/Maryland area. This likely caused some widespread road closures. Also likely that school and business shutdowns happened like this past month. This would keep a lot of drivers off the road. I'd need to pull in weather data, probably from NOAA, for PG County on this date. There is also probably a record of the recorded accident recorded by PGPD.
+
+I think the story on how it takes having little to no drivers to make such a statistically anomaly like a day without accidents (which technically didn't even happen) in PG County could be interesting to report on as a road safety piece. 
 
 Let's visualize these unusual days:
 
@@ -210,8 +220,13 @@ unusual_dow |>
 ### Task 4 (3 points)
 Compare the days that have extreme z-scores overall versus those with extreme day-of-week z-scores. How do these lists differ? What journalistic insights can you draw from comparing these two different approaches to measuring "unusual" days?
 
-ANSWER HERE
+The two lists tell different stories. The overall z-score flags days that deviate from the grand average, meaning a Friday with 45 accidents might show up just because 45 is high, even if that’s normal for a Friday. The day-of-week adjusted list corrects for that, only flagging days that are unusual for that specific day type. A Tuesday with 40 accidents is way more alarming after adjustment because Tuesdays usually average only 23.12—making it about as extreme as 58 on a Friday.
 
+Only 4 of the top 10 dates appear on both lists. Six days—mostly busy Saturdays from 2021—fall off once you account for the baseline. Meanwhile, six new dates appear on the DOW list, like a Wednesday in May 2021 with 45 accidents which had a z-score of 3.65. The weekday context makes that count genuinely a question.
+
+The DOW-adjusted list surfaces a wider range of dates—including weekdays—that represent real anomalies where I think a story might lie. A story built only on overall z-scores would mostly chase the same handful of 2021 weekend days, but the DOW list reveals that anomalies happen across the full week.
+
+The unusual_rates table also shows something unexpected: Sundays and Mondays actually have the highest percentage of DOW-unusual days. This most definitely Because their baselines are lower to begin with, single extraordinary events stand out more starkly as a story lead.
 Let's see how many unusual days we have for each day of the week:
 
 ```{r unusual-by-dow}
@@ -289,7 +304,11 @@ unusual_monthly |>
 ### Task 5 (2 points)
 Based on the monthly pattern analysis, which months have the highest and lowest average accidents? Develop a hypothesis about why these seasonal patterns exist.
 
-ANSWER HERE
+From the monthly mean data, October has the highest average daily accidents at 27.52, followed by November and May. January is the lowest at 22.21, with March and April also on the lower end.
+
+My hypothesis for October's peak is that it combines multiple risk factors into a stacked hazard effect. Daylight saving time ends, which means drivers are suddenly commuting in the dark, and the first cold rains of the year often catch people off guard. May’s elevated average likely reflects Memorial Day volume and more recreational driving as people get back on the road for the summer.
+
+January being the lowest is interesting but potentially misleading. Rather than being safe, it likely reflects less driving overall. Severe weather events keep people off the road entirely, pulling the average down. A story on seasonal safety would need to account for vehicle miles traveled to see if the roads are actually safer or if there are just fewer drivers.
 
 ## Identifying Extreme Outliers
 
@@ -314,9 +333,33 @@ if(nrow(extreme_outliers) > 0) {
 ### Task 6 (2 points)
 For the extreme outliers identified (z-scores beyond ±3), what do they have in common?
 
-ANSWER HERE
+Twelve days in the dataset hit z-scores beyond ±3, and a few patterns stand out when you look at them together. Seven of those days are from 2021 alone, making it the most statistically extreme year in the data. October 29 hit 58 accidents (z=4.77), while November 29 bottomed out at just one.
+
+What the 10 high-side outliers share is that they are all Fridays or Saturdays. Not a single weekday appears among the extreme high-accident days. The 2021 concentration aligns with the post-lockdown reopening period when travel demand surged back before driver habits and enforcement fully stabilized.
+
+Interestingly, the actual COVID lockdown days from March 2020 are not on this list because they didn't quite clear the ±3 threshold. This makes the finding pretty clear: the return to driving created more statistically extreme conditions in PG County than the shutdown itself. The worst outliers in eight years of data are actually on the other side of the emergency.
 
 ## Your Best Story Pitch
 
 ### Task 7 (5 points)
 Based on all the analyses performed, craft your best story pitch, including a headline and lede. Be sure to include what kinds of sources/people you'd talk to for the story.
+
+Headline: Prince George's County Roads Are More Dangerous Now Than Before the Pandemic
+
+Lede: When Maryland shut down in March 2020, accidents in Prince George's County nearly vanished, bottoming out at just five crashes on March 22. But as drivers returned, the data reveals a troubling shift: accident counts didn't just recover—they surged. An analysis of 2,900 days of crash records shows that the post-pandemic years have produced significantly more extreme high-accident days than the years leading up to COVID-19.
+
+Nut graf: This isn't just a temporary spike. From 2021 onward, the data sits higher than the pre-2020 baseline, suggesting a sustained change in road conditions rather than just normal year-to-year variation. When measured against the dataset's standard deviation, the worst outliers in nearly a decade actually happened after the emergency ended, not during it.
+
+Sources I'd talk to:
+
+Prince George's County Police Department traffic safety: I’d want to ask about their explanation for the post-pandemic surge and if enforcement patterns or patrol priorities changed during the recovery years.
+
+Maryland State Highway Administration: These analysts maintain the statewide crash database. I’d need their vehicle miles traveled (VMT) data to determine if we’re seeing a higher crash rate per mile or just an increase in raw volume.
+
+AAA Mid-Atlantic: For a regional perspective on driver behavior. I want to know if their data shows a lasting increase in speeding or distracted driving that started during the lockdown and never went away.
+
+University of Maryland Transportation Researcher: Since College Park is in the county, I’d talk to faculty who study urban crash patterns to get a more academic take on why these roads are Sit running hotter.
+
+County Council Transportation Committee: For the policy side. I’d ask if these rising figures have triggered any new traffic-calming investments or infrastructure changes in known hotspots.
+
+The 2020 data point also makes for a good sidebar. Those near-zero days show exactly what the roads look like with minimal traffic, which serves as a benchmark for advocates pushing for reduced car volume as a safety measure.
