@@ -1,6 +1,6 @@
 ---
 title: "Baltimore County 911 Overdose Calls Analysis"
-author: "YOUR NAME HERE"
+author: "Raphael Romero Ruiz"
 ---
 
 ```{r setup, include=FALSE}
@@ -74,7 +74,7 @@ summary(daily_calls$call_count)
 
 Let's visualize the time series of daily calls. What patterns do you see? If you had to draw horizontal lines that would highlight unusual days, where would those lines be?
 
-ANSWER HERE
+There's a high amount of calls in the late spring 2022 where there about on average 10 calls. There are some obvious outliers like the high number of calls on a date in October 2022 - the peak in our data. 
 
 ```{r daily-calls-plot}
 # Plot daily call volume
@@ -297,6 +297,79 @@ top_outliers |> kable(digits = 2)
 ## Task 10: Journalistic Insights (6 points)
 
 Based on our z-score analysis, what are some potential angles for reporting? What would your next steps be and what would you tell an editor about your findings?
+```{r cbp-drug-seizure-data}
+cbp_data_22    <- read_csv("https://www.cbp.gov/sites/default/files/2025-11/nationwide-drugs-fy22-fy25.csv")
+cbp_data_21 <- read_csv("https://www.cbp.gov/sites/default/files/2024-10/nationwide-drugs-fy21-fy24.csv")
+```
 
-ANSWER HERE
+```{r cbp-combine}
+# stack both files and drop any rows that appear in both
+cbp_combined <- bind_rows(cbp_data_22, cbp_data_21) |>
+  distinct()
+```
 
+```{r cbp-monthly}
+# pull only fentanyl and heroin from the southwest border,
+# then convert the fiscal year + month to a real calendar date
+# (CBP's fiscal year starts in October, so Oct-Dec belong to the prior calendar year)
+cbp_monthly <- cbp_combined |>
+  filter(`Drug Type` %in% c("Fentanyl", "Heroin")) |>
+  filter(Region == "Southwest Border") |>
+  mutate(
+    fy_num     = as.integer(FY),
+    month_num  = match(`Month (abbv)`,
+                       c("JAN","FEB","MAR","APR","MAY","JUN",
+                         "JUL","AUG","SEP","OCT","NOV","DEC")),
+    cal_year   = if_else(month_num >= 10L, fy_num - 1L, fy_num),
+    year_month = make_date(cal_year, month_num, 1)
+  ) |>
+  group_by(year_month) |>
+  summarise(total_seizures = sum(`Count of Event`, na.rm = TRUE)) |>
+  filter(year_month >= min_date & year_month <= max_date) |>
+  mutate(z_seizures = (total_seizures - mean(total_seizures)) / sd(total_seizures))
+```
+
+```{r calls-monthly}
+# roll up daily calls to monthly averages to match the CBP data's granularity
+monthly_calls <- daily_calls |>
+  mutate(year_month = make_date(year, as.integer(month), 1)) |>
+  group_by(year_month) |>
+  summarise(avg_calls = mean(call_count)) |>
+  filter(year_month >= min_date & year_month <= max_date) |>
+  mutate(z_calls = (avg_calls - mean(avg_calls)) / sd(avg_calls))
+```
+
+```{r overdose-seizure-plot}
+ggplot() +
+  geom_line(data = monthly_calls,
+            aes(x = year_month, y = z_calls, color = "Balt. County 911 Overdose Calls")) +
+  geom_point(data = monthly_calls,
+             aes(x = year_month, y = z_calls, color = "Balt. County 911 Overdose Calls"), size = 2) +
+  geom_line(data = cbp_monthly,
+            aes(x = year_month, y = z_seizures, color = "CBP Fentanyl/Heroin Seizures"),
+            linetype = "dashed") +
+  geom_point(data = cbp_monthly,
+             aes(x = year_month, y = z_seizures, color = "CBP Fentanyl/Heroin Seizures"), size = 2) +
+  geom_hline(yintercept = 0, linetype = "dotted", color = "gray40") +
+  scale_color_manual(values = c(
+    "Balt. County 911 Overdose Calls" = "darkblue",
+    "CBP Fentanyl/Heroin Seizures"    = "red"
+  )) +
+  theme_minimal() +
+  labs(
+    title    = "Balt. County Overdose Calls vs. Southwest Border Seizures",
+    subtitle = "Both series normalized to z-scores — dotted line = average",
+    x        = "Date",
+    y        = "Z-Score",
+    color    = "Data Source",
+    caption  = "Sources: Baltimore County 911 Data; CBP Southwest Border"
+  ) +
+  scale_y_continuous(labels = comma) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The z-score analysis points to some clear story angles that I'd pursue. The most striking to me is that Baltimore County overdose calls were unusually high throughout the spring and summer of 2022, with August hitting a peak of 366 calls. And when I compared this to CBP Southwest Border seizure data, both lines peaked at roughly the same time.
+
+My question is, if border seizures were truly choking off the supply reaching the streets, we’d see an inverse relationship: more drugs caught, fewer overdoses. But the data shows the opposite. Why? Both of the lines (which I plotted above) trend together. This may suggest that seizure counts measure total trafficking volume rather than interdiction success. When more fentanyl moves through the border, but at the same time more is caught and more is getting through.
+
+The September 2022 divergence, where 911 calls dropped 21% and border drug seizures stayed elevated—adds another layer of complexity. Local overdose volume clearly isn't just dictated by illicit border activity. If I were to report this out, my next step would be to pull 2024 and 2025 911 data to see if this trend holds. I also would want to ask CBP directly what percentage of estimated trafficking volume their seizure numbers represent, especially since March 2022 hit a record 171 seizure events just as Baltimore County calls were spiking. Most importantly, I need to talk to Baltimore County narcotics detectives. They’ll have the ground-level read on whether these border surges actually translate to changes in local supply or if the street-level picture is driven by something else entirely.
