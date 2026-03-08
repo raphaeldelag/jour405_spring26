@@ -6,26 +6,66 @@ In this assignment, you'll be picking up where you left off with the M&Ms activi
 
 ### Task 1: Load the tidyverse
 
+```{r}
+library(tidyverse)
+```
 
 ### Task 2: Load the M&Ms dataset from https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/mandms.csv
 
+```{r}
+mandms <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/mandms.csv")
+```
 
 ### Task 3: Sample 5 rows of data from the dataset
 
+```{r}
+set.seed(123) # I set a seed to talk about my results in Task 6 and 7 after running this several times without one
 
-### Task 4: Calculate the mean age and standard deviation of the sample, using either the blue or white number of M&Ms
+mandms_sample <- mandms |>
+  slice_sample(n = 5)
 
+mandms_sample
+```
+
+### Task 4: Calculate the mean age and standard deviation of the sample, using either the red or black number of M&Ms
+
+```{r}
+sample_stats <- mandms_sample |>
+  summarise(
+    mean_red = mean(red),
+    sd_red = sd(red)
+  )
+
+sample_stats
+```
 
 ### Task 5: Calculate the mean age and standard deviation of the population, using the same measure as in Task 4
 
+```{r}
+population_stats <- mandms |>
+  summarise(
+    mean_red = mean(red),
+    sd_red = sd(red)
+  )
+
+population_stats
+```
 
 ### Task 6: Compare the sample and population statistics
 
 Compare the two sets of means and standard deviations. Are they similar?
 
+```{r}
+sample_stats
+population_stats
+```
+
+The population mean for red M&Ms is approximately 73 with a standard deviation of 16.5. After running the sample several times and observing how much the results varied, I set a seed to lock in a reproducible result. The five-row sample produced a mean of 94 and an SD of 12.3. Because the sample only captures 5% of the 100-row dataset, random variation pretty much dictates whether our sample statistics land close to those values or far from them. In a sample this small, a single outlier—a bag with an unusually high or low red count—can swing the mean by several units and inflate or compress the SD dramatically. Any similarity between the two at n=5 is more about coincidence than statistical reliability.
+
 ### Task 7: Describe the results
 
 Write a few sentences about what you found in the data. What does this tell you about the M&Ms dataset and about the act of random sampling?
 
+Myy five-bag sample returned a mean that overestimated by about 21 M&Ms. This is driven entirely by the luck of the draw. Before setting a seed, running the sample multiple times showed the mean jumping around dramatically. At n=5, a single high-count bag swings the average by double digits.This is the core "sniff test" for any data-driven story. A tiny slice of data is inherently noisy and often unrepresentative of the whole. For a journalist, this reinforces that random sampling is only as reliable as the sample is large enough to absorb outliers. To confidently report what a typical bag contains, the sample size needs to scale up well beyond five observations to avoid tracking with coincidence rather than reality.
 
 When finished, save your work, switch to GitHub Desktop, then add, commit and push your changes to GitHub and submit the URL of the notebook in ELMS.
