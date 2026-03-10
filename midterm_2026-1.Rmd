@@ -1,0 +1,196 @@
+---
+title: "JOUR405: Statistics for Journalists"
+subtitle: "Midterm Exam"
+name: "Raphael Romero Ruiz"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# JOUR405: Statistics for Journalists
+## Midterm Exam
+
+For this exam, you'll analyze several datasets using R and the statistical concepts we've covered in class. Load the tidyverse before beginning, then complete each task. Write your code in the provided blocks and answer the questions in complete sentences.
+
+## Load the tidyverse
+
+```{r}
+library(tidyverse)
+```
+
+---
+
+## Part 1: Restaurant Health Inspections (25 points)
+
+The first dataset contains restaurant health inspection scores from Montgomery County. Load the data from: `https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/montco_inspections.csv`
+
+The dataset includes the name of the establishment, the number of points for critical and non-critical areas, the total points, maximum points possible, the compliance score, and the grade.
+
+### Task 1: Read the data (2 points)
+
+```{r}
+moco_health_inspections <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/montco_inspections.csv")
+```
+
+### Task 2: Calculate the mean, standard deviation, minimum, and maximum of compliance scores. Save the results in a new dataframe called `compliance_stats`. (2 points for each)
+
+```{r}
+compliance_stats <- moco_health_inspections %>% 
+  summarize(avg_complicance_score = mean(compliance_score), 
+            sd_complicance_score = sd(compliance_score),
+            min_complicance_score = min(compliance_score),
+            max_complicance_score = max(compliance_score)
+            )
+```
+
+### Task 3: Create a histogram of the compliance scores with a vertical line showing the mean. Include a descriptive title and label the x and y axes using `labs()`. (10 points)
+
+```{r}
+ggplot(moco_health_inspections, aes(x = compliance_score)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = compliance_stats$avg_complicance_score, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Distribution of Restaurant Compliance Scores in Montgomery County",
+    x = "Compliance Score",
+    y = "Count"
+  ) +
+  theme_minimal()
+```
+
+### Task 4: Write 2–3 sentences interpreting what the standard deviation and histogram tell us about the distribution of compliance scores. What is newsworthy, and what would your next reporting step be? (5 points)
+
+**Answer:**
+
+
+
+---
+
+## Part 2: Daily Transit Ridership — Z-Scores and Sampling (30 points)
+
+Your editor wants you to identify unusual days in WMATA's daily ridership data that might be worth investigating as story leads. The dataset contains daily bus and rail totals. Load the data from: `https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/wmata_daily.csv`
+
+### Task 5: Load the WMATA ridership data. (2 points)
+
+```{r}
+wmata_daily <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/wmata_daily.csv")
+```
+
+### Task 6: Using `summarize()`, calculate the mean and standard deviation for both bus and rail ridership. Save the results in a dataframe called `wmata_stats`. (5 points)
+
+```{r}
+wmata_stats <- wmata_daily %>% 
+  summarize(
+    avg_bus_ridership = mean(bus), 
+    sd_bus_ridership = sd(bus),
+    avg_rail_ridership =  mean(rail),
+    sd_rail_ridership = sd(rail)
+  )
+
+```
+
+### Task 7: Using `mutate()`, add two new columns to `wmata_daily`: `rail_zscore` (the z-score for rail ridership) and `bus_zscore` (the z-score for bus ridership). Save the result as `wmata_zscores`. (8 points)
+
+```{r}
+wmata_zscores <- wmata_daily %>% 
+  mutate(
+    bus_zscore = (bus - wmata_stats$avg_bus_ridership) / wmata_stats$sd_bus_ridership,
+    rail_zscore = (rail - wmata_stats$avg_rail_ridership) / wmata_stats$sd_rail_ridership
+  )
+```
+
+### Task 8: Filter `wmata_zscores` to show only days where the absolute value of `rail_zscore` is greater than 2 (unusually high or low rail ridership). Arrange by the absolute value of the z-score, with the most extreme first. How many unusual days are there? (8 points)
+
+```{r}
+wmata_zscores %>% 
+  filter(abs(rail_zscore) > 2) %>%
+  arrange(desc(abs(rail_zscore)))
+```
+
+### Task 9: Using `set.seed()`, take a random sample of 91 days from `wmata_daily` (roughly 25% of the data). Calculate the mean and standard deviation for bus and rail ridership in the sample. How do the sample statistics compare to the population statistics you calculated in Task 6? Write 1–2 sentences comparing the values and explaining what this suggests about random sampling. (4 points)
+
+```{r}
+set.seed(42)
+
+wmata_sample <- wmata_daily %>%
+  sample_n(91)
+
+wmata_sample %>%
+  summarize(
+    avg_bus_ridership = mean(bus),
+    sd_bus_ridership = sd(bus),
+    avg_rail_ridership = mean(rail),
+    sd_rail_ridership = sd(rail)
+  )
+```
+The sample mean and standard deviation for both bus and rail ridership are very close to the full-population figures calculated in Task 6, differing by only a small margin. This tells us that a well-drawn random sample of roughly 25% of the data is good enough to approximate the ridership population.
+
+### Task 10: Write 2–3 sentences: What do the unusual days in your z-score analysis suggest as story leads? (3 points)
+
+The days that had rail z-scores beyond 2 are very rare instances compared to our normal ridership, this could be due to random major weather events, maybe service outages, etc. But each flagged date could be a story driven by rider ship data. 
+
+---
+
+## Part 3: Maryland Car Theft Rates (25 points)
+
+Your editor has assigned you a story about car thefts in Maryland and wants you to find out which counties have the highest rates. The dataset contains car theft counts for Maryland counties in 2023 along with population figures. Load the data from: `https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/md_car_thefts.csv`
+
+### Task 11: Load the car thefts data. (2 points)
+
+```{r}
+md_car_thefts <- read_csv("https://raw.githubusercontent.com/dwillis/jour405/refs/heads/main/data/md_car_thefts.csv")
+```
+
+### Task 12: Using `mutate()`, add a column called `theft_rate` that calculates the car theft rate per 10,000 residents for each county. Save the result back to `md_car_thefts`. In 1–2 sentences, explain why a per-capita rate is more useful than raw counts for this comparison. (8 points)
+
+```{r}
+md_car_thefts <- md_car_thefts %>% 
+  mutate(
+    theft_rate = (thefts_2023 / population) * 10000
+  )
+```
+
+The raw theft counts show us that the large counties will, unsurprisingly, have more instance reported compared to smaller counties with less residents. This doesn't neccesiarly mean that residents of a large county are more at risk to having their car stolen. In order to see whether or not that's true we have to find a per-capita rate. This standardizes for population size, making it possible to make a fair, apples-to-apples comparison across Maryland's 24 jurisdictions and identify where residents are genuinely most vulnerable.
+
+
+### Task 13: Calculate the median car theft rate and the total number of car thefts statewide. Show the counties that have rates above the median. (7 points)
+
+```{r}
+median_theft_rate <- median(md_car_thefts$theft_rate)
+total_thefts <- sum(md_car_thefts$thefts_2023)
+
+md_car_thefts %>%
+  filter(theft_rate > median_theft_rate) %>%
+  arrange(desc(theft_rate))
+```
+
+### Task 14: Write 2–3 sentences describing what these calculations reveal about the distribution of car thefts in Maryland. What is the lede of a story based on your findings? (8 points)
+
+There is very wide variation of per capita theft rates across the MD counties, many are very "uniformly" low and just a few handful are causing the statewide totals to be disproportionate to the population. Finding the median rate doesn't really express the range of the rates at just shy of 10 when the counties that sit above the median rate are way above it. 
+
+Lede: A small number of Maryland counties accounts for a disproportionate share of the state's car thefts, with rates per 10,000 residents that dwarf those of neighboring jurisdictions, an analysis of 2023 crime data shows.
+
+---
+
+## Part 4: Data Analysis Scenario (20 points)
+
+A city parks department releases data showing that its 12 community swimming pools average 187 visitors per day during the summer season, with a standard deviation of 42 visitors. Your editor suspects that a handful of pools are dramatically underperforming and wants a story. You also learn that the department's figures are based on a random sample of 60 days per pool rather than a complete count.
+
+Write 3–4 sentences for each of the following questions:
+
+### Question A: Given that the mean is 187 and standard deviation is 42, which statistical measures would you prioritize using and why? (7 points)
+
+I'd take the mean as a benchmark for the expected daily attendance but I can't rely on it alone. The standard deviation has an equally important role here since it clues me on the variation across the 12 swimming pools. I think in addition to these given variables, I would want to calculate the range for this data set is probably a good idea to get a sense of what outliers exist. It would only take just a few days in our 60 day sample where a lot of people show up to pull the mean upward. As a journalist checking all our boxes here let's me set a defensible threshold for what counts as a genuinely low performance day instead of say a normal fluctuation in the number of visitors. 
+
+### Question B: How would you use z-scores to identify which pools are genuinely underperforming, and why is that more useful than simply ranking pools by raw attendance? (7 points)
+
+### Question C: The department collected its attendance figures using a random sample of 60 days per pool rather than tracking every day. What questions would you ask about the sample before relying on these figures for a story? What concerns would you raise in your story? Use statistical terminology where appropriate. (6 points)
+
+---
+
+### Submission Instructions
+- Save your work frequently
+- Make sure all code blocks run without errors
+- Provide clear explanations for your choices
+
+Good luck!
