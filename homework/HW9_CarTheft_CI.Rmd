@@ -1,6 +1,6 @@
 ---
 title: "HW9: Car Theft Confidence Intervals & Margin of Error"
-name: REPLACE WITH YOUR NAME
+name: Raphael Romero Ruiz
 ---
 
 Your editor wants to know what a "typical" month of car thefts looks like in Prince George's County. Not just the average — she wants to know how confident you can be in that number. Using monthly figures, confidence intervals and margin of error, you'll come up with an answer and decide whether the data supports a clear story. As with the previous homework, provide answers in this notebook when prompted and you will have to fill in values where you see REPLACE_ME. Get started by loading the tidyverse in a new R block.
@@ -9,7 +9,7 @@ Your editor wants to know what a "typical" month of car thefts looks like in Pri
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-# LOAD THE TIDYVERSE
+library(tidyverse)
 ```
 
 ### Task 2: Load the Prince George's county crime data
@@ -29,7 +29,7 @@ glimpse(car_thefts)
 
 We'll make a line chart using geom_line() to try and illustrate any trend over time. What's your initial reaction to the change in car thefts? Is there a trend? If your editor asked you "how many car thefts happen in a typical month?", what would you say based on this chart alone?
 
-PUT ANSWERS HERE
+You can see a clear downward trend in the number of car thefts in Prince George's County. The data starts very high with over 600 thefts in July 2023. It begins to decline from there fairly steadily to around 200–280 by the late part of 2025 and early 2026. A few flair ups happene here and there most notably in the mid-2024 area. But the overall direction is unmistakably downward. Based on just this chart alone, I'd tell my editor that there is no "typical" month, but pulling my arm I'd give a range somewhere between 350 and 425 if you average across the whole period. If the question is more leaned towards recent months we'd be looking closer to 200–300.
 
 ```{r}
 
@@ -60,9 +60,9 @@ We've got a small number of months, so we need to quantify the uncertainty aroun
 theft_summary <- car_thefts |>
   summarize(
     mean_thefts = mean(total),
-    sd_thefts = sd(REPLACE_ME),
+    sd_thefts = sd(total),
     months = n(),
-    se_thefts = sd_thefts / sqrt(REPLACE_ME),
+    se_thefts = sd_thefts / sqrt(months),
     margin_error = qt(0.975, df = months - 1) * se_thefts
   )
 
@@ -73,7 +73,7 @@ theft_summary
 
 **Answer this question:** Explain in your own words what the margin of error tells us here. If you were writing a story, how would you use this number? For example, how would you complete this sentence: "Prince George's County averages about ___ car thefts per month, plus or minus ___."
 
-PUT ANSWERS HERE
+Finding the margin of error here helps us see how the mean from this sample can vary. Basically how precise or imprecise our average really is. The MoE helps us provide a range rather than definitive number which can help our credibility on this. On the note about the sentence, I would approach it like this: "Prince George's County averages about 376 car thefts per month, plus or minus 34." That means the true "typical" month likely falls somewhere between 342 and 410.
 
 ### Task 5: Build the confidence interval
 
@@ -83,8 +83,8 @@ Now let's turn the margin of error into a full confidence interval — the range
 
 theft_summary <- theft_summary |>
   mutate(
-    ci_lower = mean_thefts - REPLACE_ME,
-    ci_upper = mean_thefts + REPLACE_ME
+    ci_lower = mean_thefts - margin_error,
+    ci_upper = mean_thefts + margin_error
   )
 
 theft_summary |>
@@ -94,13 +94,13 @@ theft_summary |>
 
 **Answer this question:** If a county official claimed "car thefts are down to about 300 per month," does your confidence interval support that claim? What about a claim of 350 per month? Explain how the confidence interval helps you evaluate each claim.
 
-PUT ANSWERS HERE
+We found that our confidence interval does not suppor the claim being made by the county official. On the low end we don't even come close to "about 300", we land at 341. But if we fix that number to 350, then we can say the data is consistent with that since our high end falls short of 410. Our confidence interval is useful in a circumstance like this because it gives us the ground we need to push back on claims that don't fall inside our range. But if it does fall inside we can definitively rule it out.
 
 ### Task 6: Visualize the data with the confidence interval
 
 Let's make a chart showing the data with the mean and the 95% confidence interval. Does this change anything about your answer from Task 3?
 
-PUT ANSWERS HERE
+Adding the mean and the confidence interval reinforces my answer in task 3 since the mean sits right in the middle of the early to middle portion of the data. But, with the average at about 376, the graph makes it clear that nearly every month from mid-2025 onward falls below the lower bound of the confidence interval. What this also tells me is that we can't rely on the average to characterize a "typical" month in the latter part of the data.
 
 ```{r}
 # Make a chart with the mean and CI
@@ -133,7 +133,7 @@ In class we learned that MoE = 1/√n × 100 as a quick approximation for polls.
 hypothetical_summary <- tibble(
   mean_thefts = theft_summary$mean_thefts,
   sd_thefts = theft_summary$sd_thefts,
-  months = REPLACE_ME,
+  months = 40,
   se_thefts = sd_thefts / sqrt(months),
   margin_error = qt(0.975, df = months - 1) * se_thefts,
   ci_lower = mean_thefts - margin_error,
@@ -155,7 +155,9 @@ comparison
 
 **Answer this question:** How did the margin of error and confidence interval change? What does this tell you about the tradeoff between having more data and being able to make precise claims? If you were covering crime trends, how many months of data would you want before writing a definitive story?
 
-PUT ANSWERS HERE
+Upping the data to 40 months definitely helps tighten the range, but the shift isn't massive. We see the margin of error drop from about 34 down to 30, and the confidence interval narrows right along with it. It proves that while more data points help kill some of that uncertainty, you eventually hit diminishing returns because the math is based on a square root rather than a straight line. The real tradeoff here is time. Waiting for more data gives you a more precise average, but as a journalist, that means you're sitting on a story longer. 
+
+If you go early with a smaller sample, you just have to be a lot more careful about how you hedge your claims. For a crime story, I’d want at least 24 to 36 months of data before I’d feel comfortable calling it a definitive trend. Anything less than two or three years and you’re probably just looking at a seasonal spike or a one-off event distorting the whole picture.
 
 ### Task 8: Reporting with uncertainty
 
@@ -165,7 +167,12 @@ Based on everything you've calculated, answer the following:
 
 2. Your editor says "Just tell me if car thefts are going up or down." Using only the confidence interval (no significance testing yet), what's the most accurate answer you can give? What would you need to do next to answer that question more definitively?
 
-PUT ANSWERS HERE
+Headline: Prince George's County car thefts drop sharply but uncertainty remains over the new floor
 
+Lede: Car thefts in Prince George's County have dropped dramatically since mid-2023, falling from more than 600 incidents a month to roughly 200–280 in recent months, according to county crime data. While the county averaged about 376 thefts per month over the past two and a half years—a figure that could reasonably range from 342 to 410—the most recent data suggests the actual current rate has landed well below that historical average. 
+
+Since mid-2025, nearly every month has landed well below that lower bound, showing an unmistakably downward direction that likely signals a deeper change in crime patterns rather than just a temporary dip in the numbers, though analysts caution that a longer data record would be needed to confirm the trend is permanent.
+
+Editor's question — "Are car thefts going up or down?":** If you're pulling my arm, I'd say they're going down. But the problem is that our confidence interval (341–410) is anchored to the full 32-month average. It’s basically describing the middle of the historical data rather than the recent slide we're seeing. While it’s clear the latest months fall way below that range, the CI alone doesn't definitively prove the direction.
 
 When you are finished, save your work, switch to GitHub Desktop, then add, commit and push your changes to GitHub and submit the URL of the notebook in ELMS.
