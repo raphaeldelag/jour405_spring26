@@ -58,4 +58,10 @@ weekly_wmata |>
 
 **Answer this question:** Describe the trend you see. Is ridership going up, down, or staying flat? What are the big dips, and what might explain them? What would you want to know before writing a story about Metro weekly ridership trends?
 
-ANSWER HERE
+The overall trend in WMATA ridership is modestly downward, with the regression line sliding from approximately 4.8 million to 4.6 million weekly riders over the 14-month period. 
+
+While there are a few  seasonal bumps in the spring and autumn, the data has plenty of sharp crashes, at least from what I can tell, around federal holiday weeks like Memorial Day, the Fourth of July, and Thanksgiving. 
+
+The biggest of these dips is recorded in late December 2024, which lines up with the federal holiday theory since that month the federal government is observing a plethora of festivities with office closures which in turn generates th elow ridership days. There is likely an argument to be made about holiday tourism, but I have no way to really measure how that maybe offsetting declining ridership of federal workers. Before writing a story on this decline, I’d need do a sniff test specifically focused on how ridership data extends back in time to see if this is really a slight downward tilt or if it is apart of large decline in ridership. Maybe this is really just a mesa or plateau that we are incredibly zoomed in on. 
+
+Also would help to know what baseline ridership trends were pre-pandemic to see what we should be expecting ridership to look like. There is also likely more factors to pour in here like service disruptions or changes in fare cost that could be distorting our data for which I am currently not accounting for. 
