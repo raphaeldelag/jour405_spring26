@@ -184,7 +184,9 @@ For a cost of $2M, we have to really scrutinize whether the public funds were pu
 
 **Question 3:** Write a headline and a 2-3 sentence lede for a story about these findings. Your text should accurately reflect both the statistical significance and the effect size — don't let the police chief's framing drive the story if the data tells a more nuanced one.
 
-ANSWER HERE
+**Headline:** Westbrook's $2M Policing Overhaul Trimmed Response Times by 25 Seconds
+
+**Lede:** Westbrook's police chief declared his department's $2 million community policing overhaul a success — but data from 20 emergency calls tells a more complicated story. The improvement amounts to roughly 25 seconds per call. The department has not said how many total calls the program affected, or how Westbrook's numbers compare to similar cities.
 
 
 When you are finished, save your work, switch to GitHub Desktop, then add, commit and push your changes to GitHub and submit the URL of the notebook in ELMS.
