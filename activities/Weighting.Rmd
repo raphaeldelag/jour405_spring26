@@ -94,9 +94,15 @@ ggplot(nonvoters_data, aes(x = weight)) +
 
 1. What is the range of weights in this dataset?
 
+The weights go from 0.23 on the low end all the way to 3.04, but the median is 0.97 and the mean is 0.99, so most people in this sample are counting pretty close to one person. The right tailed histogram makes it pretty clear though that the distribution pulls to a small number of respondents who are weighted at 2.0 or higher to account for groups that barely showed up in the survey.
+
 2. What does it mean when a respondent has a weight of 0.23? What about 3.04?
 
+A 0.23 weight means that person's group is so overrepresented in the sample that their response basically counts as a quarter of a person. A 3.04 weight is the flip side, that person's group barely showed up in the survey compared to how many of them exist in the real population, so the data stretches their response to count as three people to make up for it.
+
 3. Why might some respondents be weighted more heavily than others?
+
+Respondents get weighted more heavily when their demographic group shows up in the survey at a lower rate than they exist in the real population. Some people are just way more likely to answer a survey than others, and that gap can skew the whole picture. Older college educated white respondents tend to show up in samples at a much higher rate than younger people, people of color, or people who didn't go to college. If you don't correct for that, you end up with a portrait of public opinion that really just reflects who picks up the phone, not who actually lives in the country. 
 
 # Exercise 1: Voter Categories and Weighting
 
@@ -233,6 +239,12 @@ kable(comparison, digits = 1, caption = "Difference Between Weighted and Unweigh
 
 1. Which voter category shows the biggest difference between weighted and unweighted results?
 
+The category of people who rarely or never vote showed the biggest difference between the results. 
+
 2. How might these differences affect reporting on likely voter turnout?
 
+Well, coming from Arizona, these people determine the battle ground state. The hardcore GOPers or Democrats are built in to our understanding of the election landscape. But the folks who may be civically disengaged are difficult to track and I should be weighing their opinions or thoughts on the election with caution. It is likely that these folks may not participate at all according to the differences of our results. 
+
 3. Why do you think these differences exist? What does this tell us about who might be over or under-represented in the sample?
+
+The differences have to do with time and place. A respondent to a survey about voting who typically does not vote, has a higher likelihood of responding in the affirmative to voting in the next election cycle. It is also evident in this survey that they are are also the people who responded to the survey the least. The rarely or never voters are over represented in this sample but they also are the people that may be determing close races. 
