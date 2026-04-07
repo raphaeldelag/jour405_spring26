@@ -1,6 +1,6 @@
 ---
 title: "HW11: Education Level and Survey Weighting"
-author: "Your Name Here"
+author: "Raphael Romero Ruiz"
 ---
 
 ```{r setup, include=FALSE}
@@ -46,19 +46,19 @@ ggplot(nonvoters_data, aes(x = weight)) +
 
 **Question 1:** Most weights cluster near 1.0, but some are much higher or lower. What does a weight of 0.2 tell you about that respondent's group in the sample? What about a weight of 3.5? Why might a pollster assign such extreme weights?
 
-ANSWER HERE
+A weight of 0.2 means that person's group is so overrepresented in the sample that their response only counts as a fifth of a person. There are already plenty of people like them in the data, demographically speaking, so the pollster has to dial them back. A weight of 3.5 is the opposite, that group barely showed up in the survey, so their response gets stretched to count as three and a half people to fill the gap. You get those extreme weights when the sample strays far from the real population, which tends to happen with groups that are historically hard to reach or just less likely to participate in surveys to begin with.
 
 ## Task 2: Education Distribution in the Sample (3 points)
 
 ```{r education-distribution}
 nonvoters_data |>
-  count(REPLACE_ME) |>
+  count(educ) |>
   mutate(percentage = round(n / sum(n) * 100, 1))
 ```
 
 **Question 2:** College graduates are overrepresented in most surveys. Does that appear to be true here? Why might college graduates be more likely to respond to a survey than people with less education?
 
-ANSWER HERE
+College graduates do appear to be overrepresented here, which is pretty much what you'd expect. People with degrees are more likely to have voted before, dealt with government forms, or engaged with civic processes, and probably feel more confident that their opinion is worth submitting. People without college degrees are more likely to be working hourly jobs or multiple shifts where stopping to fill out a survey just isn't realistic, and may also be more skeptical of whether any of this actually matters if their experience with those same civic institutions hasn't been great.
 
 ## Task 3: Unweighted Voting Intentions by Education (4 points)
 
@@ -87,7 +87,7 @@ unweighted_summary
 
 **Question 3:** Based only on these unweighted numbers, write a one-sentence headline for a story about education and voting intentions.
 
-ANSWER HERE
+A College Degree Is the Strongest Predictor of Whether You'll Vote
 
 ## Task 4: Weighted Voting Intentions by Education (2 points)
 
@@ -97,7 +97,7 @@ Now apply the weights. Instead of counting respondents, we sum their weights —
 weighted_by_education <- nonvoters_data |>
   filter(!is.na(Q21), Q21 > 0, !is.na(educ)) |>
   group_by(educ, Q21) |>
-  summarize(weighted_count = sum(REPLACE_ME), .groups = "drop_last") |>
+  summarize(weighted_count = sum(weight), .groups = "drop_last") |>
   mutate(weighted_total = sum(weighted_count),
          weighted_percentage = weighted_count / weighted_total * 100) |>
   ungroup()
@@ -125,7 +125,7 @@ viz_data <- bind_rows(
   weighted_by_education |>
     filter(Q21 == 1) |>
     mutate(Type = "Weighted",
-           percentage = REPLACE_ME) |>
+           percentage = weighted_percentage) |>
     select(Type, educ, percentage)
 )
 
@@ -145,7 +145,7 @@ ggplot(viz_data, aes(x = educ, y = percentage, fill = Type)) +
 
 **Question 4:** Which education group shows the biggest shift between weighted and unweighted results? In percentage points, how large is that shift? Does weighting change the story, or does it just change the exact numbers?
 
-ANSWER HERE
+High school or less shows the biggest shift, dropping 2.7 percentage points after weighting from 73.5% down to 70.8%. College and some college barely moved, 0.1 and 0.6 points respectively. The story doesn't really change though. College graduates are still at the top, high school or less is still at the bottom, and all three groups are still reporting high intent to vote. What weighting does here is make the high school group's number a little more honest since they were underrepresented in the raw sample to begin with, so the unweighted figure was probably giving them too much credit.
 
 ## Task 6: The UMD Belonging Survey (8 points)
 
@@ -153,4 +153,8 @@ Earlier in class this week, we looked at the 2024 UMD Belonging and Community Su
 
 **Question 5:** Based on what you've learned in this assignment, write 2-3 paragraphs as if you were a reporter evaluating the UMD survey before writing a story based on it. Address: (1) what the lack of weighting means for how you'd use the results, (2) which groups in the UMD survey appeared most underrepresented based on Figures 1 and 2, and (3) what question you would ask the survey's authors before publishing.
 
-ANSWER HERE
+1. A 23% response rate with no weighting is a real problem if you're trying to use this survey to say something about the whole UMD community. What you're left with is a picture of who felt motivated enough to respond, which is not the same thing as a representative read on how students, faculty and staff actually feel about belonging on campus. The report acknowledges there are statistically significant differences between the sample and the UMD population by gender and race, but then attributes it to "different group categories used" rather than actually correcting for it. That explanation doesn't hold up when you look at the numbers.
+
+2. Figure 1 shows men make up 50% of the UMD population but only 38% of survey respondents, a 12 point gap. Figure 2 shows Hispanic and Latinx community members are nearly cut in half, going from 9% of the population to just 5% of respondents. Black community members are also underrepresented, at 11% of the sample versus 13% of the population. These aren't rounding errors. Those gaps matter because the groups being left out are the ones most likely to report feeling like they don't belong.
+
+3. Before writing anything based on this survey I would ask the authors why they chose not to apply weights after already identifying these gaps. They had the population data to know the sample was off. That's enough to start correcting for it. The answer to that question would tell me a lot about how much I could trust anything else in the report.
