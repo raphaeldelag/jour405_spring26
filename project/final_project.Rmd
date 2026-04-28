@@ -1,0 +1,171 @@
+---
+title: "Final Project Data Exploration"
+author: "Raphael Romero Ruiz"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(readxl) # raw data comes as .xlsx, not .csv
+library(janitor)
+options(scipen = 999)
+```
+
+## Project Overview
+
+I'm working with two related ideas that use the same underlying FOIA dataset. Both are trying to get at the same core question: what actually happens to ICE enforcement when a state legally pulls back from cooperating with federal immigration authorities?
+
+**Idea 1:** Did ICE ramp up detainer requests to Maryland jurisdictions in the months before the state banned 287(g) agreements? My hypothesis is that detainer volume went up significantly in the lead-up period compared to after the ban took effect, like a last push to lock in enforcement activity before the legal ground shifted.
+
+**Idea 2:** Does Maryland's lack of in-state civil immigration detention infrastructure push out-of-state transfer rates significantly higher than Virginia, which still has active in-state ICE detention facilities? My hypothesis is yes, and I think the gap is big enough to be a real story.
+
+---
+
+## Data Source
+
+The data comes from the **Deportation Data Project**, a research initiative that gets immigration enforcement records from ICE through FOIA requests and posts them publicly for journalists, researchers, and lawyers. The most recent release (FOIA 2026-ICLI-00005) covers FY2023 through FY2026 year-to-date and was released March 11, 2026. It's available at [https://deportationdata.org](https://deportationdata.org).
+
+We got this release at the Howard Center for Investigative Journalism about three weeks ago and have been working with it for published reporting on immigration enforcement in Maryland. The files come split out by data type — detainers, detentions, encounters, arrests — one fiscal year per file. Each file has individual-level records, not aggregate totals.
+
+**File size note:** The detainers files are each under 100MB, so I saved them in the `project/data/` folder and tracked them via Git LFS. The detentions files run between 130-230MB each, which puts them over the threshold. For those I'm loading from a local path in a separate project directory. I'll reach out if I need help getting those accessible.
+
+---
+
+## Part 1: Detainers
+
+### Loading the Data
+
+```{r load-detainers}
+base <- "data/"
+
+detainers <- bind_rows(
+  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY23_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY24_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY25_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY26_20260311_Redacted.xlsx"), skip = 6)
+) |>
+  clean_names() |>
+  mutate(detainer_prepare_date = as.Date(detainer_prepare_date))
+```
+
+### What's in It
+
+```{r detainers-examine}
+glimpse(detainers)
+
+cat("Total records:", nrow(detainers), "\n")
+cat("Date range:", format(min(detainers$detainer_prepare_date, na.rm = TRUE)),
+    "to", format(max(detainers$detainer_prepare_date, na.rm = TRUE)), "\n")
+```
+
+The combined file has 64 columns and covers detainers issued nationally from October 2022 through early 2026. Each row is one detainer request. About three and a half years of data, which gives me a real before-and-after window around Maryland's 287(g) ban on February 17, 2026.
+
+### Filtering to Maryland
+
+```{r filter-md}
+md_detainers <- detainers |>
+  filter(facility_state %in% c("MD", "MARYLAND"))
+
+cat("Maryland detainer records:", nrow(md_detainers), "\n")
+```
+
+ICE uses both "MD" and "MARYLAND" in the `facility_state` field depending on the record, so I filter for both.
+
+### Most Important Columns
+
+- `detainer_prepare_date` — when the detainer was issued; this is the key date for defining pre- and post-ban periods
+- `facility_state` — filters to Maryland
+- `detainer_facility` — which specific jail or agency issued the detainer; I'll use this to separate 287(g) facilities from non-287(g) ones
+- `detainer_criminality` / `detainer_threat_level` — enforcement priority classification
+- `detainer_type` — type of detainer request
+- `case_status` — whether the detainer actually resulted in a detention booking
+
+### Quick Look at Key Fields
+
+```{r detainers-explore}
+md_detainers |> count(detainer_facility, sort = TRUE) |> head(10)
+
+md_detainers |> count(detainer_criminality, sort = TRUE)
+
+md_detainers |>
+  mutate(month = floor_date(detainer_prepare_date, "month")) |>
+  count(month) |>
+  ggplot(aes(x = month, y = n)) +
+  geom_line() +
+  geom_vline(xintercept = as.Date("2025-01-20"), linetype = "dashed", color = "red") +
+  geom_vline(xintercept = as.Date("2026-02-17"), linetype = "dashed", color = "blue") +
+  labs(
+    title = "Monthly ICE Detainers in Maryland",
+    subtitle = "Red = inauguration (Jan 20, 2025), Blue = 287(g) ban (Feb 17, 2026)",
+    x = "Month", y = "Detainers"
+  ) +
+  theme_minimal()
+```
+
+---
+
+## Part 2: Detentions
+
+### Loading the Data
+
+The detentions files are large — some over 100MB — so they're tracked via Git LFS alongside the detainers.
+
+```{r load-detentions}
+detentions <- bind_rows(
+  read_excel(paste0(base, "2026-ICLI-00005_Detentions_PriorFY23_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY23_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY24_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY25_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY26_20260311_Redacted.xlsx"), skip = 6)
+) |>
+  clean_names()
+```
+
+### What's in It
+
+```{r detentions-examine}
+glimpse(detentions)
+
+cat("Total records:", nrow(detentions), "\n")
+```
+
+The detentions file has 53 columns and each row is one detention stay. I'm also pulling in the PriorFY23 file, which extends the window back further and gives me more data points for the Maryland vs. Virginia comparison.
+
+### Most Important Columns
+
+- `book_in_aor` — Area of Responsibility where the person was initially booked; Baltimore AOR = Maryland, Washington/Richmond AOR = Virginia
+- `detention_facility` — where they were actually held; comparing this to the book-in AOR is how I flag out-of-state transfers
+- `book_in_date_time` — date of booking
+- `detention_release_reason` — how the detention ended
+
+### Quick Look at AOR Values
+
+```{r detentions-explore}
+detentions |> count(book_in_aor, sort = TRUE)
+
+md_detentions <- detentions |> filter(book_in_aor == "Baltimore")
+va_detentions <- detentions |> filter(book_in_aor %in% c("Washington", "Richmond"))
+
+cat("Baltimore AOR records:", nrow(md_detentions), "\n")
+cat("Virginia AOR records:", nrow(va_detentions), "\n")
+
+md_detentions |> count(detention_facility, sort = TRUE) |> head(10)
+```
+
+---
+
+## What's Missing
+
+1. I don't have a facility-to-state lookup table yet. The `detention_facility` column has names but no state field, so I can't automatically flag out-of-state placements without cross-referencing against an external list of facility locations. I'll need to either build this from ICE's detention facility list or find one that already exists.
+
+2. The post-ban period only covers about two months of data (Feb. 17 through March 2026), which probably isn't enough on its own for a clean statistical comparison. I need to think through how to frame the "after" group.
+
+3. I have a 287(g) reference file that lists participating agencies, but the facility names may not match the `detainer_facility` column exactly. I'll need to check that join carefully before I can split 287(g) from non-287(g) detainers — fuzzy matching might be needed.
+
+## Questions I Need Help With
+
+1. For Idea 1, should the "before" group in my t-test be the full pre-inauguration window going back to October 2022, or a narrower window closer to the ban? The wider window gives more data points but might dilute the ramp-up signal I'm looking for.
+
+2. For Idea 2, is a chi-square test on proportions the right call for comparing out-of-state transfer rates between Maryland and Virginia, or is there a better approach?
+
+3. The Washington AOR covers Northern Virginia near DC, which probably behaves differently from the Richmond AOR. Should I keep those separate rather than combining them into one Virginia group?
