@@ -27,7 +27,7 @@ The data comes from the **Deportation Data Project**, a research initiative that
 
 We got this release at the Howard Center for Investigative Journalism about three weeks ago and have been working with it for published reporting on immigration enforcement in Maryland. The files come split out by data type — detainers, detentions, encounters, arrests — one fiscal year per file. Each file has individual-level records, not aggregate totals.
 
-**File size note:** The detainers files are each under 100MB, so I saved them in the `project/data/` folder and tracked them via Git LFS. The detentions files run between 130-230MB each, which puts them over the threshold. For those I'm loading from a local path in a separate project directory. I'll reach out if I need help getting those accessible.
+**File size note:** The detainers files are each under 100MB and the detentions files run larger, some over 100MB. All of them are saved in the `project/data/` folder and tracked via Git LFS.
 
 ---
 
