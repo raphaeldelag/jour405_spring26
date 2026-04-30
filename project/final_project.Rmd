@@ -6,8 +6,10 @@ author: "Raphael Romero Ruiz"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 library(tidyverse)
-library(readxl) # raw data comes as .xlsx, not .csv
+library(readxl)
 library(janitor)
+library(nanoparquet)
+library(sf)
 options(scipen = 999)
 ```
 
@@ -15,34 +17,46 @@ options(scipen = 999)
 
 I'm working with two related ideas that use the same underlying FOIA dataset. Both are trying to get at the same core question: what actually happens to ICE enforcement when a state legally pulls back from cooperating with federal immigration authorities?
 
-**Idea 1:** Did ICE ramp up detainer requests to Maryland jurisdictions in the months before the state banned 287(g) agreements? My hypothesis is that detainer volume went up significantly in the lead-up period compared to after the ban took effect, like a last push to lock in enforcement activity before the legal ground shifted.
+Idea 1: Did ICE ramp up detainer requests to Maryland jurisdictions in the months before the state banned 287(g) agreements? My hypothesis is that detainer volume went up significantly in the lead-up period compared to after the ban took effect, like a last push to lock in enforcement activity before the legal ground shifted.
 
-**Idea 2:** Does Maryland's lack of in-state civil immigration detention infrastructure push out-of-state transfer rates significantly higher than Virginia, which still has active in-state ICE detention facilities? My hypothesis is yes, and I think the gap is big enough to be a real story.
+Idea 2: Does Maryland's lack of in-state civil immigration detention infrastructure push out-of-state transfer rates significantly higher than Virginia, which still has active in-state ICE detention facilities? My hypothesis is yes, and I think the gap is big enough to be a real story.
 
----
+------------------------------------------------------------------------
 
 ## Data Source
 
-The data comes from the **Deportation Data Project**, a research initiative that gets immigration enforcement records from ICE through FOIA requests and posts them publicly for journalists, researchers, and lawyers. The most recent release (FOIA 2026-ICLI-00005) covers FY2023 through FY2026 year-to-date and was released March 11, 2026. It's available at [https://deportationdata.org](https://deportationdata.org).
+The data comes from the Deportation Data Project, a research initiative that obtains immigration enforcement records from ICE through FOIA requests and posts them publicly for journalists, researchers, and lawyers. The release used here (FOIA 2026-ICLI-00005) covers FY2023 through FY2026 year-to-date and was released March 11, 2026. It's available at deportationdata.org.
 
-We got this release at the Howard Center for Investigative Journalism about three weeks ago and have been working with it for published reporting on immigration enforcement in Maryland. The files come split out by data type — detainers, detentions, encounters, arrests — one fiscal year per file. Each file has individual-level records, not aggregate totals.
+These are the same datasets I've been working with for the past year to report on ICE custodial arrests in jurisdictions where state lawmakers have restricted cooperation with federal immigration enforcement. The files are split by data type — detainers, detentions, encounters, arrests — one fiscal year per file, with individual-level records rather than aggregate totals.
 
-**File size note:** The detainers files are each under 100MB and the detentions files run larger, some over 100MB. All of them are saved in the `project/data/` folder and tracked via Git LFS.
+**Detainers** load directly from the raw xlsx files. Each file is under 100MB and R handles them fine. Each row is one detainer request.
 
----
+**Detentions** are different, and the structure is worth explaining.
+
+The Deportation Data Project distinguishes between *stints* and *stays*. A stint is a continuous period at a single facility. A stay is the full detention period — it can span multiple stints if someone is transferred between facilities. The raw xlsx detention files have one row per stint. According to the DDP codebook, the project processes those raw files into a parquet format with one row per stay, keeping summary fields from the first, last, and longest stints (book-in/out dates, facility names) and dropping duplicate records.
+
+The raw xlsx detention files range from 136MB to 233MB each — four files totaling roughly 680MB. Loading all four into R at once causes memory exhaustion. The parquet file is pre-processed by DDP and loads cleanly.
+
+The practical consequence for Idea 2 is that the parquet's stay-level structure hides within-stay transfers: if someone moved from the Baltimore hold room to an out-of-state facility within the same stay, that transfer shows up only in the stint-level raw file. But for Maryland, almost all stays have exactly one stint — the hold room booking, either in Baltimore or in Salisbury.
+
+When someone gets transferred to a longer-term facility, it appears as a new stay record in a different AOR rather than as a second stint in the same stay. So the right method for measuring transfers is person-level tracking across stays, not looking for second stints within a stay.
+
+All files are saved locally in `project/data/` and excluded from git via `.gitignore`.
+
+------------------------------------------------------------------------
 
 ## Part 1: Detainers
 
 ### Loading the Data
 
 ```{r load-detainers}
-base <- "data/"
+raw_detainers <- "data/raw/2026-ICLI-00005_Detainers_Redacted/"
 
 detainers <- bind_rows(
-  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY23_20260311_Redacted.xlsx"), skip = 6),
-  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY24_20260311_Redacted.xlsx"), skip = 6),
-  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY25_20260311_Redacted.xlsx"), skip = 6),
-  read_excel(paste0(base, "2026-ICLI-00005_Detainers_FY26_20260311_Redacted.xlsx"), skip = 6)
+  read_excel(paste0(raw_detainers, "2026-ICLI-00005_Detainers_FY23_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(raw_detainers, "2026-ICLI-00005_Detainers_FY24_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(raw_detainers, "2026-ICLI-00005_Detainers_FY25_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(raw_detainers, "2026-ICLI-00005_Detainers_FY26_20260311_Redacted.xlsx"), skip = 6)
 ) |>
   clean_names() |>
   mutate(detainer_prepare_date = as.Date(detainer_prepare_date))
@@ -58,18 +72,16 @@ cat("Date range:", format(min(detainers$detainer_prepare_date, na.rm = TRUE)),
     "to", format(max(detainers$detainer_prepare_date, na.rm = TRUE)), "\n")
 ```
 
-The combined file has 64 columns and covers detainers issued nationally from October 2022 through early 2026. Each row is one detainer request. About three and a half years of data, which gives me a real before-and-after window around Maryland's 287(g) ban on February 17, 2026.
+The combined file has 64 columns and runs from October 2022 through early 2026. Each row is one detainer request — about three and a half years of data. That's a real before-and-after window for Maryland's 287(g) ban on February 17, 2026, which is exactly what I need.
 
 ### Filtering to Maryland
 
 ```{r filter-md}
 md_detainers <- detainers |>
-  filter(facility_state %in% c("MD", "MARYLAND"))
+  filter(facility_state == "MARYLAND")
 
 cat("Maryland detainer records:", nrow(md_detainers), "\n")
 ```
-
-ICE uses both "MD" and "MARYLAND" in the `facility_state` field depending on the record, so I filter for both.
 
 ### Most Important Columns
 
@@ -94,31 +106,33 @@ md_detainers |>
   geom_line() +
   geom_vline(xintercept = as.Date("2025-01-20"), linetype = "dashed", color = "red") +
   geom_vline(xintercept = as.Date("2026-02-17"), linetype = "dashed", color = "blue") +
+  annotate("text", x = as.Date("2025-01-20"), y = Inf,
+           label = "Inauguration\nJan 20, 2025", color = "red",
+           hjust = 1.08, vjust = 1.4, size = 3) +
+  annotate("text", x = as.Date("2026-02-17"), y = Inf,
+           label = "287(g) ban\nFeb 17, 2026", color = "blue",
+           hjust = 1.08, vjust = 1.4, size = 3) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  coord_cartesian(xlim = c(as.Date("2024-11-01"), NA)) +
   labs(
-    title = "Monthly ICE Detainers in Maryland",
-    subtitle = "Red = inauguration (Jan 20, 2025), Blue = 287(g) ban (Feb 17, 2026)",
-    x = "Month", y = "Detainers"
+    title = "ICE detainer requests to Maryland jails surged after Trump's inauguration",
+    x = NULL, y = "Detainers"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
----
+------------------------------------------------------------------------
 
 ## Part 2: Detentions
 
 ### Loading the Data
 
-The detentions files are large — some over 100MB — so they're tracked via Git LFS alongside the detainers.
+The detentions data loads from DDP's pre-processed parquet file, which has one row per stay. The raw xlsx files (one row per stint) are in `data/raw/` for reference but couldn't be used here — loading all four fiscal years simultaneously exhausted available memory before R could finish binding them.
 
 ```{r load-detentions}
-detentions <- bind_rows(
-  read_excel(paste0(base, "2026-ICLI-00005_Detentions_PriorFY23_20260311_Redacted.xlsx"), skip = 6),
-  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY23_20260311_Redacted.xlsx"), skip = 6),
-  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY24_20260311_Redacted.xlsx"), skip = 6),
-  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY25_20260311_Redacted.xlsx"), skip = 6),
-  read_excel(paste0(base, "2026-ICLI-00005_Detentions_FY26_20260311_Redacted.xlsx"), skip = 6)
-) |>
-  clean_names()
+detentions <- read_parquet("data/processed/detention-stays-latest.parquet")
 ```
 
 ### What's in It
@@ -129,13 +143,13 @@ glimpse(detentions)
 cat("Total records:", nrow(detentions), "\n")
 ```
 
-The detentions file has 53 columns and each row is one detention stay. I'm also pulling in the PriorFY23 file, which extends the window back further and gives me more data points for the Maryland vs. Virginia comparison.
+The detentions file has 53 columns and each row is one detention stay. FY23 through FY26, so about three years — enough for a solid Maryland vs. Virginia comparison.
 
 ### Most Important Columns
 
-- `book_in_aor` — Area of Responsibility where the person was initially booked; Baltimore AOR = Maryland, Washington/Richmond AOR = Virginia
-- `detention_facility` — where they were actually held; comparing this to the book-in AOR is how I flag out-of-state transfers
-- `book_in_date_time` — date of booking
+- `book_in_aor` — Area of Responsibility where the person was initially booked; Maryland maps to Baltimore AOR, Virginia to Washington AOR
+- `detention_facility_first` / `detention_facility_last` — initial and final facility
+- `stay_book_in_date_time` — date of booking
 - `detention_release_reason` — how the detention ended
 
 ### Quick Look at AOR Values
@@ -143,29 +157,246 @@ The detentions file has 53 columns and each row is one detention stay. I'm also 
 ```{r detentions-explore}
 detentions |> count(book_in_aor, sort = TRUE)
 
-md_detentions <- detentions |> filter(book_in_aor == "Baltimore")
-va_detentions <- detentions |> filter(book_in_aor %in% c("Washington", "Richmond"))
+md_detentions <- detentions |>
+  filter(book_in_aor == "Baltimore Area of Responsibility")
 
-cat("Baltimore AOR records:", nrow(md_detentions), "\n")
-cat("Virginia AOR records:", nrow(va_detentions), "\n")
+va_detentions <- detentions |>
+  filter(book_in_aor == "Washington Area of Responsibility")
 
-md_detentions |> count(detention_facility, sort = TRUE) |> head(10)
+cat("Baltimore AOR (Maryland) records:", nrow(md_detentions), "\n")
+cat("Washington AOR (Virginia) records:", nrow(va_detentions), "\n")
+
+md_detentions |> count(detention_facility_first, sort = TRUE) |> head(10)
 ```
 
----
+### AOR Map
 
-## What's Missing
+```{r aor-map}
+aor_shp <- st_read(
+  "/Users/raphaelromeroruiz/GitHub/ddr_deportation_data/code_review_dec_18/ice_aor_data/ice-aor-shp/ice-aor-shp.shp",
+  quiet = TRUE
+)
+offices_shp <- st_read(
+  "/Users/raphaelromeroruiz/GitHub/ddr_deportation_data/code_review_dec_18/ice_aor_data/ice-offices-shp/ice-offices.shp",
+  quiet = TRUE
+)
 
-1. I don't have a facility-to-state lookup table yet. The `detention_facility` column has names but no state field, so I can't automatically flag out-of-state placements without cross-referencing against an external list of facility locations. I'll need to either build this from ICE's detention facility list or find one that already exists.
+conus_bbox <- st_bbox(c(xmin = -125, xmax = -66, ymin = 24, ymax = 50), crs = st_crs(aor_shp))
 
-2. The post-ban period only covers about two months of data (Feb. 17 through March 2026), which probably isn't enough on its own for a clean statistical comparison. I need to think through how to frame the "after" group.
+aor_map <- aor_shp |>
+  filter(!is.na(aor_nam), aor_nam != "HQ") |>
+  st_crop(conus_bbox) |>
+  mutate(highlight = case_when(
+    aor_nam == "Baltimore"  ~ "Maryland (Baltimore AOR)",
+    aor_nam == "Washington" ~ "Virginia (Washington AOR)",
+    TRUE                    ~ "Other"
+  ))
 
-3. I have a 287(g) reference file that lists participating agencies, but the facility names may not match the `detainer_facility` column exactly. I'll need to check that join carefully before I can split 287(g) from non-287(g) detainers — fuzzy matching might be needed.
+field_offices <- offices_shp |>
+  filter(offc_nm %in% c("Baltimore Field Office", "Washington Field Office")) |>
+  mutate(label = gsub(" Field Office", "", offc_nm))
 
-## Questions I Need Help With
+ggplot(aor_map) +
+  geom_sf(aes(fill = highlight), color = "white", linewidth = 0.4) +
+  scale_fill_manual(
+    values = c(
+      "Maryland (Baltimore AOR)"  = "#95d5b2",
+      "Virginia (Washington AOR)" = "#f9c784",
+      "Other"                     = "#e0e0e0"
+    ),
+    breaks = c("Maryland (Baltimore AOR)", "Virginia (Washington AOR)")
+  ) +
+  geom_sf(data = field_offices, shape = 21, size = 2, fill = "white", color = "#222222", stroke = 0.8) +
+  geom_text(
+    data = field_offices,
+    aes(label = label, geometry = geometry),
+    stat = "sf_coordinates",
+    size = 2.8, fontface = "bold", hjust = -0.2, color = "#222222"
+  ) +
+  coord_sf(xlim = c(-84, -74), ylim = c(36.3, 40)) +
+  labs(
+    title = "Maryland and Virginia fall under different ICE enforcement zones",
+    subtitle = "Each state is served by a separate field office and Area of Responsibility",
+    fill = NULL
+  ) +
+  theme_void() +
+  theme(legend.position = "bottom")
+```
 
-1. For Idea 1, should the "before" group in my t-test be the full pre-inauguration window going back to October 2022, or a narrower window closer to the ban? The wider window gives more data points but might dilute the ramp-up signal I'm looking for.
+------------------------------------------------------------------------
 
-2. For Idea 2, is a chi-square test on proportions the right call for comparing out-of-state transfer rates between Maryland and Virginia, or is there a better approach?
+## Part 3: Analysis
 
-3. The Washington AOR covers Northern Virginia near DC, which probably behaves differently from the Richmond AOR. Should I keep those separate rather than combining them into one Virginia group?
+### Idea 1 — Did ICE ramp up detainers before Maryland's 287(g) ban?
+
+I want to establish a baseline understanding of how the volume of detainers has changed since President Donald Trump's return to the White House. This will help us get a sense of what a "normal" period is like under this new administration. Second, and what deals more directly with our hypothesis: was there a last push in the weeks before Maryland's 287(g) ban on February 17, 2026?
+
+The first thing I did here is a broad pre/post-inauguration t-test on monthly counts. Then I did a year-over-year comparison window around the ban date as well as an adjacent two-week test to see if detainers accelerated in the final stretch before the ban.
+
+The baseline for the broad test is Oct 2022 through Jan 19, 2025. This captures all of the Biden administration data we have available. The ramp-up period is Jan 20, 2025 onward. Cohen's d measures effect size.
+
+```{r idea1-ttest}
+inauguration <- as.Date("2025-01-20")
+
+monthly_md <- md_detainers |>
+  mutate(month = floor_date(detainer_prepare_date, "month")) |>
+  count(month) |>
+  mutate(period = if_else(month < inauguration, "baseline", "ramp_up"))
+
+baseline <- monthly_md |> filter(period == "baseline") |> pull(n)
+ramp_up  <- monthly_md |> filter(period == "ramp_up")  |> pull(n)
+
+t_result <- t.test(ramp_up, baseline)
+print(t_result)
+
+# Cohen's d
+pooled_sd <- sqrt((var(baseline) * (length(baseline) - 1) +
+                   var(ramp_up)  * (length(ramp_up)  - 1)) /
+                  (length(baseline) + length(ramp_up) - 2))
+cohens_d <- (mean(ramp_up) - mean(baseline)) / pooled_sd
+
+cat("Baseline mean (monthly detainers):", round(mean(baseline), 1), "\n")
+cat("Ramp-up mean (monthly detainers):", round(mean(ramp_up), 1), "\n")
+cat("Cohen's d:", round(cohens_d, 3), "\n")
+```
+
+Then the two targeted windows. Window A compares daily detainer counts in the four weeks before the ban (Jan 20 – Feb 16, 2026) against the same four weeks a year earlier. Window B compares the final two weeks before the ban against the two weeks immediately before that, which I believe to be the most direct test of terminal acceleration.
+
+```{r idea1-runup}
+ban_date <- as.Date("2026-02-17")
+
+# Window A: year-over-year comparison
+yoy_2026 <- md_detainers |>
+  filter(detainer_prepare_date >= as.Date("2026-01-20"),
+         detainer_prepare_date <  ban_date) |>
+  mutate(day = as.Date(detainer_prepare_date)) |>
+  count(day) |> pull(n)
+
+yoy_2025 <- md_detainers |>
+  filter(detainer_prepare_date >= as.Date("2025-01-20"),
+         detainer_prepare_date <  as.Date("2025-02-17")) |>
+  mutate(day = as.Date(detainer_prepare_date)) |>
+  count(day) |> pull(n)
+
+yoy_test <- t.test(yoy_2026, yoy_2025)
+cat("=== Year-over-year: Jan 20 – Feb 16, 2026 vs. 2025 ===\n")
+cat("2026 daily mean:", round(mean(yoy_2026), 1), "\n")
+cat("2025 daily mean:", round(mean(yoy_2025), 1), "\n")
+print(yoy_test)
+
+# Window B: adjacent two-week blocks
+final_2wk <- md_detainers |>
+  filter(detainer_prepare_date >= as.Date("2026-02-03"),
+         detainer_prepare_date <  ban_date) |>
+  mutate(day = as.Date(detainer_prepare_date)) |>
+  count(day) |> pull(n)
+
+prior_2wk <- md_detainers |>
+  filter(detainer_prepare_date >= as.Date("2026-01-20"),
+         detainer_prepare_date <  as.Date("2026-02-03")) |>
+  mutate(day = as.Date(detainer_prepare_date)) |>
+  count(day) |> pull(n)
+
+adj_test <- t.test(final_2wk, prior_2wk)
+cat("\n=== Adjacent: Feb 3–16, 2026 vs. Jan 20 – Feb 2, 2026 ===\n")
+cat("Final 2-week daily mean:", round(mean(final_2wk), 1), "\n")
+cat("Prior 2-week daily mean:", round(mean(prior_2wk), 1), "\n")
+print(adj_test)
+```
+
+Together these tell a pretty clear story. The Trump surge is real. ICE was issuing about 41% more detainers per month after the inauguration than before (187 vs. 133/month, p = 0.007, Cohen's d = 1.137). It is important to note that the number of detainers has dropped since peaking in the early months of the administration.
+
+I'd take that to my editor without hesitation. But the "last push" hypothesis doesn't hold.
+
+The year-over-year comparison goes the wrong direction: the four weeks before the 2026 ban actually had fewer daily detainers than the same stretch in 2025 (4.6 vs. 7.5/day, p = 0.0003).
+
+If I had to chalk this up to something, I'd say that this is a continuation of the "Trump surge" idea since there was such a big focus on ramping up enforcement efforts particularly in the first 100 days of the administration. Because of that context, I would say this text is flawed.
+
+What I believe to be the most accurate test for our hypothesis showed that the final two weeks before the ban didn't spike relative to the two weeks just before them (5.2 vs. 3.9/day, p = 0.195). (I wonder if this would hold true if we increased our time allotted to say 4 weeks.)
+
+What actually happened is ICE reached a new elevated normal sometime in 2025 and stayed there — the ban date wasn't a deadline that accelerated anything.
+
+------------------------------------------------------------------------
+
+### Idea 2 — Do Maryland detainees get transferred out of state at higher rates than Virginia?
+
+This one took some untangling. As mentioned already: Transfers to out-of-state facilities don't show up as second stints within the same stay record. Instead out-of-state moves show up as entirely new stay records under a different AOR.
+
+So if I just look at where people's first stays ended, I'll miss the transfers entirely.
+
+I don't typically use the pre-proccessed data but I was having a difficult time loading all of the detention files for this project file. After some playing around with this data set, what I found the right approach to be is to track people, duh. The way to do that though was to find someone who was first detained in the Baltimore AOR later show up in a different AOR's records.
+
+Same logic for Virginia, which falls entirely under the Washington AOR. AOR is a proxy for state here, which isn't perfect, but it works because these two states are covered by a single AOR.
+
+Though it is important to ntoe that the Washington AOR covers parts of the DC metro area, not just Virginia proper, but it's close enough to work with.
+
+```{r idea2-transfers}
+# Transfers show up as separate stay records, not second stints within the same stay.
+# Approach: for each person who had a Baltimore AOR stay, find any detention stays that started AFTER that Baltimore stay ended and are outside Maryland's AOR.
+
+balt_anchor <- md_detentions |>
+  group_by(unique_identifier) |>
+  slice_min(stay_book_in_date_time, n = 1) |>
+  ungroup() |>
+  select(unique_identifier, balt_end = stay_book_out_date_time)
+
+md_oos <- detentions |>
+  inner_join(balt_anchor, by = "unique_identifier") |>
+  filter(stay_book_in_date_time > balt_end,
+         book_in_aor != "Baltimore Area of Responsibility") |>
+  pull(unique_identifier) |>
+  n_distinct()
+
+md_n <- n_distinct(md_detentions$unique_identifier)
+
+# Same logic for Virginia
+va_anchor <- va_detentions |>
+  group_by(unique_identifier) |>
+  slice_min(stay_book_in_date_time, n = 1) |>
+  ungroup() |>
+  select(unique_identifier, va_end = stay_book_out_date_time)
+
+va_oos <- detentions |>
+  inner_join(va_anchor, by = "unique_identifier") |>
+  filter(stay_book_in_date_time > va_end,
+         book_in_aor != "Washington Area of Responsibility") |>
+  pull(unique_identifier) |>
+  n_distinct()
+
+va_n <- n_distinct(va_detentions$unique_identifier)
+
+cat("MD people with post-Baltimore out-of-AOR detention:", md_oos, "of", md_n, "\n")
+cat("VA people with post-Virginia out-of-AOR detention:", va_oos, "of", va_n, "\n")
+```
+
+```{r idea2-proptest}
+prop_result <- prop.test(c(md_oos, va_oos), c(md_n, va_n))
+print(prop_result)
+
+cat("MD out-of-state rate (post-holdroom):", round(md_oos / md_n * 100, 1), "%\n")
+cat("VA out-of-state rate (post-first):", round(va_oos / va_n * 100, 1), "%\n")
+```
+
+The hypothesis holds. Fourteen percent of people who started in the Baltimore AOR later showed up in a different AOR's detention records, basically double the 7.2% rate for Virginia (χ² = 52.07, p \< 5.4×10⁻¹³).
+
+I think this tracks with what we know about Maryland's detention infrastructure, or the lack of it. There are no contracted ICE detention facilities in Maryland people get booked into the Baltimore or Salisbury hold rooms and then, when they need to be held longer, they go somewhere else. That is the effect that a 2021 ban on having civil immigration detention facilities in the state, a crackdown on both intergovernmental agreements that existed with a few county agencies and also private corporations.
+
+Virginia has more in-state capacity so more of those detention stays actually stay in Virginia. You can see it in the cross-stay pattern: Maryland hold-room stays close, and the same person turns up in ICE records in a different AOR.
+
+We shoudl defintely still note that because the Washington AOR does cover DC some of the cross-AOR moves in our comparison might not be actually crossing state lines. That also applies to subsequent detention records include re-arrests after someone was released, not just direct facility transfers.
+
+## Conclusions
+
+Even though our hypothesis for Idea 1 didn't pan out, it did give me something else to report on (which I will probably include in my custodial arrests analysis story for the Howard Center.
+
+And that is: The post-inauguration surge is real — ICE went from about 133 detainers a month in Maryland to 187, a 41% jump with a p-value of 0.007 and a Cohen's d of 1.137. That's about as strong as it gets for an effect size. I'd take that to my editor.
+
+The "last push" story I'd drop. When I actually look at the weeks before the ban, detainers were lower in 2026 than they were in 2025 for the same period. The final two weeks didn't spike compared to the two weeks before. What happened is ICE established a new normal sometime in 2025 and sat there.
+
+Idea 2 does hold though.
+
+Maryland detainees show up in other AOR detention records at nearly double the rate of Virginia detainees +(14% vs. 7.2%). That tracks with the infrastructure story, Maryland has no contracted ICE facilities, so people go some where else after the hold room.
+
+Virginia keeps more of its detained population in state.
+
+One thing I'd do to strengthen both of these analysis is start with the arrest data frame as that is a suppose to be a record of all arrests in a given place (although I have already seen where someone has every other kind of record - encounter, detainer, detention - but no arrest record which is a big problem). Starting with this population group gives us the most reliable figures down the analysis chain.
