@@ -49,5 +49,25 @@ matches |>
 
 ### Task 6: Describe the results of both the correlation calculation and the scatterplot.
 
+The correlation between fouls and goal differential is 0.0181, which is about as close to zero as you can get. We see this in the scatterplot, which paints the picture on how fouls aren't actually good predictors for a match outcome. The graph's regression line barely shifts too. 
+
+### Task 7: Pick a different variable and calculate its correlation with `goal_diff` using the same Pearson method.
+
+```{r}
+matches |> summarize(correlation = cor(so_g, goal_diff, method="pearson"))
+```
+
+### Task 8: Create a scatterplot of that variable and goal differential.
+
+```{r}
+matches |>
+  ggplot() +
+  geom_point(aes(x=goal_diff, y=so_g)) +
+  geom_smooth(aes(x=goal_diff, y=so_g), method="lm")
+```
+
+### Task 9: Describe the results of both the correlation calculation and the scatterplot for your chosen variable.
+
+The correlation between shots on goal and goal differential is 0.602, which is a much more interesting result. Teams that put more shots on target tend to win by wider margins, and you can actually see it in the scatterplot. Points track closer to the regression line than in the fouls plot, and the upward trend is real. Shots on goal is a far stronger signal for match outcomes than foul counts.
 
 When you are done, save your work, switch to GitHub Desktop, then add, commit and push your changes to GitHub and submit the URL of the notebook in ELMS.
