@@ -54,7 +54,7 @@ The coefficients tell us the estimated effect of each independent variable on th
 
 Is this a useful model, based on what you've seen? Why?
 
-ANSWER HERE
+ANSWER: Yes, but with caveats. An R-squared of 0.6232 means it accounts for about 62% of the variation in wins across teams, even though NFL outcomes are also shaped by coaching decisions, injuries, weather, and special teams play that these three variables cannot capture. Points Scored is the only variable that clears the significance threshold (p = 0.007), meaning it is the only one we can confidently say actually predicts wins. Where it falls short is precision. The residual standard error of roughly 2 wins means predictions can be off by two games in either direction in a 17-game season. That is too wide a margin to publish a win-total prediction and stand behind it. The model is more useful as a reporting tool than a forecasting tool. It tells you which statistics actually correlate with winning so you know what to focus on and what to ignore when covering a team.
 
 ## Correlation Analysis
 
@@ -80,8 +80,10 @@ The results from our correlation analysis show the strength of the relationships
 
 Which of these three factors - Yards Gained, Takeaways and Points Scored - have the most impact on wins? Are there any that do not seem impactful at all?
 
-ANSWER HERE
+ANSWER: Of the three, Points Scored drives wins most reliably. It is the only variable with a statistically significant coefficient (p = 0.007), and the correlation matrix confirms it has the strongest positive relationship with wins of the three. For a reporter, this means scoring output is the most defensible stat to anchor a team evaluation on. Takeaways are worth tracking as a secondary signal. The relationship approaches significance (p = 0.079) and the direction is positive, so turnover-forcing defenses likely do win more, but the data does not quite get there. Yards Gained is the most surprising finding and arguably the most useful one journalistically. Its coefficient is near zero and its p-value (0.343) clears no meaningful bar, which means a team racking up big yardage numbers but losing games is not being betrayed by bad luck. The yards just do not matter as much as the scoreboard does. That is a story worth telling.
 
 ## Using the Model (3 points)
 
 Without using the words "multiple regression model", describe how you could use this model to cover a team or game.
+
+ANSWER: You could use this model to find teams whose records do not match what their stats predict, and then report on why. A team that scores a lot of points and forces turnovers but sits at .500 is underperforming a model-based expectation. That gap is a story. Maybe it is special teams. Maybe it is clock management. On the flip side, a team with a winning record but poor scoring numbers is probably winning close games on borrowed time, and that is worth writing about too. Midseason is the most natural time to do this. Once a team has eight or ten games of data, you can run their numbers through the model and ask whether their record reflects how they are actually playing. If the numbers say 9-4 and they are 6-7, you have a concrete statistical frame for a piece about a team that is worse than their potential. It grounds the analysis in something more rigorous than a beat reporter's eye test.
