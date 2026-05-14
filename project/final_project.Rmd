@@ -13,6 +13,81 @@ library(sf)
 options(scipen = 999)
 ```
 
+## The Tests I Could Run
+
+The two ideas pull in different directions, so the tests that make sense for each are pretty different.
+
+For Idea 1, I'm comparing time periods. That's a before-and-after question, and the most direct tool is a two-sample t-test on monthly detainer counts, the same approach from HW10 when we compared car theft rates across periods. 
+
+Derek suggested using the full available window as the baseline (October 2022 through January 19, 2025), but also noted it would be worth testing a narrower pre-inauguration window to see if the result holds. I'd run both and report Cohen's d for each. Cohen's d is important here because with a full population of records rather than a sample, statistical significance is almost guaranteed if any real difference exists. What matters is whether the effect size is large enough to write about. We covered this in HW11.
+
+If I break the data into three periods instead of two (Biden era, early Trump, post-ban), ANOVA is the right test, not multiple t-tests. We did this in HW12 with the pre/spike/post car theft structure, and the period breakdown here maps pretty naturally onto that. I'd follow it up with a Tukey HSD to find out which pair of periods is actually driving the difference.
+
+I'd also look at z-scores to flag which specific months are statistical outliers in the full series, similar to the CarTheftZScores activity. That would let me pinpoint when the surge actually started rather than just assuming the inauguration date is the right cutoff. And I should probably put confidence intervals around the period means too (we did this in HW9), though with only about 14 months of Trump-era data those CIs are going to be fairly wide.
+
+A simple regression with time as the predictor could also tell me whether detainers are trending up or down within the Trump window, not just whether the overall average is higher. We covered this in HW15 and HW16.
+
+For Idea 2, I have a binary outcome (transferred out of state or not) across two groups. That's a proportions problem. 
+
+Derek also suggested two approaches that give the same p-value for a 2×2 table: a chi-square test of independence (which we used in HW13) or prop.test() in R. He mentioned that the prop.test() is the more natural choice here because it produces a confidence interval for the difference in rates directly.
+
+That's what I actually want to show: not just whether Maryland and Virginia differ, but by how much and with what uncertainty. Same caveat applies regardless: sample sizes in the thousands mean statistical significance is basically guaranteed, so the CI and the rate difference are what matter for reporting.
+
+If I expand beyond Baltimore and Washington AORs to bring in Richmond and get a fuller Virginia picture, ANOVA on transfer rates across multiple AORs would be the right move rather than running multiple two-group comparisons.
+
+On the descriptive side, the basics apply to both ideas: mean, median, standard deviation before running anything inferential.
+
+Per capita normalization too, at least for geographic comparisons, since raw detainer counts favor jurisdictions with larger jail populations. We did this in the MD city crime homework. Percentage change is also useful here. Comparing Biden-era to Trump-era averages as a percentage jump (HW2) is the plain-language version of the t-test result, and it's what actually makes it into a story. Survey weighting doesn't apply. These are administrative records maintained by ICE, not survey responses, so there's nothing to weight for sampling design.
+
+------------------------------------------------------------------------
+
+## Trials, Errors and Lessons
+
+The first and biggest error I ran into was with the detentions data. My initial plan was to load all four fiscal year files the same way I loaded the detainers, just bind them together and go:
+
+```{r load-detentions-attempt, eval=FALSE}
+detentions_raw <- bind_rows(
+  read_excel("data/raw/2026-ICLI-00005_Detentions_Redacted/2026-ICLI-00005_Detentions_FY23_20260311_Redacted.xlsx", skip = 6),
+  read_excel("data/raw/2026-ICLI-00005_Detentions_Redacted/2026-ICLI-00005_Detentions_FY24_20260311_Redacted.xlsx", skip = 6),
+  read_excel("data/raw/2026-ICLI-00005_Detentions_Redacted/2026-ICLI-00005_Detentions_FY25_20260311_Redacted.xlsx", skip = 6),
+  read_excel("data/raw/2026-ICLI-00005_Detentions_Redacted/2026-ICLI-00005_Detentions_FY26_20260311_Redacted.xlsx", skip = 6)
+)
+```
+
+R hung for a few minutes and then crashed. The detention files are between 136MB and 233MB each, around 680MB combined. After some searching I found that readxl loads each file fully into memory before you can touch it, so there is no way to filter before the load. R runs out of space trying to hold all four at once. The fix was to use the DDP pre-processed parquet instead, which is already aggregated to one row per stay and loads fine at 126MB.
+
+The second problem was a filter returning zero rows. I tried to pull Maryland records like this:
+
+```{r filter-aor-attempt, eval=FALSE}
+md_detentions <- detentions |>
+  filter(book_in_aor == "Baltimore")
+```
+
+Nothing came back. I ran `count(book_in_aor, sort = TRUE)` to actually look at the column values and saw that they use full names: "Baltimore Area of Responsibility." Simple fix once I saw it, but I should have checked the values before writing the filter.
+
+The third thing that tripped me up was the transfer methodology, and this one took more untangling. 
+
+I assumed transfers would show up as a second stint within the same stay record — someone books into the Baltimore hold room and then moves to a facility in another state, two entries in the same stay. But almost every Maryland stay in the parquet has exactly one stint. 
+
+There was nothing to count. That is because the parquet aggregates stints into stays and keeps summary fields, not a list of every facility move. When someone actually gets transferred out of state, it shows up as a brand new stay record under a different AOR, not as a second stint in the original one. Once I understood that, the approach was pretty obvious: track people by unique identifier across stays, not within a single stay. Duh.
+
+The last error was with the t-test setup. My first pass looked like this:
+
+```{r ttest-wrong, eval=FALSE}
+t.test(
+  md_detainers |> filter(detainer_prepare_date >= inauguration) |> pull(detainer_prepare_date),
+  md_detainers |> filter(detainer_prepare_date < inauguration) |> pull(detainer_prepare_date)
+)
+```
+
+I was passing date vectors, not detainer counts. The t-test was comparing dates to each other, which doesn't make sense. The fix was to aggregate to monthly counts first with `floor_date()` and `count()` and then pass those vectors in.
+
+Once those were sorted out, both ideas produced clean results. For Idea 1, the post-inauguration surge is real: about 133 detainers a month during the Biden baseline, 187 after inauguration, p = 0.007, Cohen's d = 1.137. That is a large effect and I'd take it to an editor. The "last push before the ban" hypothesis did not hold though. The year-over-year comparison for the four weeks before Maryland's 287(g) ban went in the wrong direction. There were fewer daily detainers in 2026 than the same stretch in 2025. What happened is ICE established a new elevated baseline and sat there. The ban date wasn't a deadline that changed anything.
+
+For Idea 2, the hypothesis held. Fourteen percent of people who started in the Baltimore AOR later showed up in a different AOR's records, compared to 7.2% for Virginia. The prop.test came back significant at basically any threshold you'd pick, though the rate difference is what makes it a story. Maryland's lack of in-state detention capacity pushes people out of state at about double the rate of Virginia, which still has facilities.
+
+------------------------------------------------------------------------
+
 ## Project Overview
 
 I'm working with two related ideas that use the same underlying FOIA dataset. Both are trying to get at the same core question: what actually happens to ICE enforcement when a state legally pulls back from cooperating with federal immigration authorities?
@@ -49,6 +124,8 @@ All files are saved locally in `project/data/` and excluded from git via `.gitig
 
 ### Loading the Data
 
+The detainers FOIA release comes as four separate xlsx files, one per fiscal year. I'm binding them into a single dataframe, cleaning column names, deduplicating with `distinct()` (I found 2,067 duplicate rows across the full dataset, 8 of them in Maryland), and converting the date column so R treats it as a date rather than a string.
+
 ```{r load-detainers}
 raw_detainers <- "data/raw/2026-ICLI-00005_Detainers_Redacted/"
 
@@ -59,10 +136,13 @@ detainers <- bind_rows(
   read_excel(paste0(raw_detainers, "2026-ICLI-00005_Detainers_FY26_20260311_Redacted.xlsx"), skip = 6)
 ) |>
   clean_names() |>
+  distinct() |>
   mutate(detainer_prepare_date = as.Date(detainer_prepare_date))
 ```
 
 ### What's in It
+
+Before doing anything else, I want to know the shape of the data: how many rows, how many columns, and what the date range looks like. This is just a sanity check before filtering.
 
 ```{r detainers-examine}
 glimpse(detainers)
@@ -72,9 +152,11 @@ cat("Date range:", format(min(detainers$detainer_prepare_date, na.rm = TRUE)),
     "to", format(max(detainers$detainer_prepare_date, na.rm = TRUE)), "\n")
 ```
 
-The combined file has 64 columns and runs from October 2022 through early 2026. Each row is one detainer request — about three and a half years of data. That's a real before-and-after window for Maryland's 287(g) ban on February 17, 2026, which is exactly what I need.
+The combined file has 64 columns and runs from October 2022 through mid March 2026. Each row is one detainer request — about three and a half years of data. That's the best before-and-after window for Maryland's 287(g) ban on February 17, 2026 currently available.
 
 ### Filtering to Maryland
+
+The full detainers dataset covers the whole country. I only need Maryland, so I'm filtering on `facility_state` before doing anything else. This is also where I confirm the row count looks reasonable.
 
 ```{r filter-md}
 md_detainers <- detainers |>
@@ -82,6 +164,8 @@ md_detainers <- detainers |>
 
 cat("Maryland detainer records:", nrow(md_detainers), "\n")
 ```
+
+That gives me the right subset to work with for the rest of Part 1.
 
 ### Most Important Columns
 
@@ -123,6 +207,12 @@ md_detainers |>
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+The top facilities are mostly county jails: Prince George's, Montgomery, Frederick, Howard. Worth noting that the top two by volume, Prince George's and Montgomery, never had 287(g) agreements. Frederick and Howard did. So the detainer volume isn't simply a function of 287(g) participation. 
+
+Also worth noting is the criminality breakdown: a lot of these detainers are for people with no criminal record or minor offenses, which pushes back on how 287(g) programs get framed publicly.
+
+But the time series is what I actually care about here. The surge after inauguration is clear as day. Volume jumps in early 2025 and stays elevated. There's a drop heading into late 2025 and early 2026, which is directly relevant to the "last push" hypothesis we test in Part 3. The ban date doesn't look like a cliff in the data.
+
 ------------------------------------------------------------------------
 
 ## Part 2: Detentions
@@ -135,7 +225,11 @@ The detentions data loads from DDP's pre-processed parquet file, which has one r
 detentions <- read_parquet("data/processed/detention-stays-latest.parquet")
 ```
 
+Loaded fine. The parquet is 126MB but reads in a few seconds, which is a lot better than the 680MB xlsx approach that crashed R.
+
 ### What's in It
+
+Same sanity check as before — I want to confirm the dimensions and make sure the parquet loaded correctly before I start filtering.
 
 ```{r detentions-examine}
 glimpse(detentions)
@@ -169,15 +263,17 @@ cat("Washington AOR (Virginia) records:", nrow(va_detentions), "\n")
 md_detentions |> count(detention_facility_first, sort = TRUE) |> head(10)
 ```
 
+The facility breakdown for the Baltimore AOR is pretty telling on its own. It's almost entirely made up by the Baltimore and Salisbury hold rooms, with almost nothing from longer-term detention facilities. That's the infrastructure gap right there. Everyone starts in one of those two places and either gets released or ends up somewhere else.
+
 ### AOR Map
 
 ```{r aor-map}
 aor_shp <- st_read(
-  "/Users/raphaelromeroruiz/GitHub/ddr_deportation_data/code_review_dec_18/ice_aor_data/ice-aor-shp/ice-aor-shp.shp",
+  "data/raw/ice-aor-shp/ice-aor-shp.shp",
   quiet = TRUE
 )
 offices_shp <- st_read(
-  "/Users/raphaelromeroruiz/GitHub/ddr_deportation_data/code_review_dec_18/ice_aor_data/ice-offices-shp/ice-offices.shp",
+  "data/raw/ice-offices-shp/ice-offices.shp",
   quiet = TRUE
 )
 
@@ -223,13 +319,15 @@ ggplot(aor_map) +
   theme(legend.position = "bottom")
 ```
 
+I just wanted to show how Maryland and Virginia fall under completely separate enforcement zones with their own field offices, which is what makes the comparison in Part 3 work. The one caveat is that the Washington AOR isn't just Virginia — it covers parts of the DC metro area too, which I'll come back to later.
+
 ------------------------------------------------------------------------
 
 ## Part 3: Analysis
 
 ### Idea 1 — Did ICE ramp up detainers before Maryland's 287(g) ban?
 
-I want to establish a baseline understanding of how the volume of detainers has changed since President Donald Trump's return to the White House. This will help us get a sense of what a "normal" period is like under this new administration. Second, and what deals more directly with our hypothesis: was there a last push in the weeks before Maryland's 287(g) ban on February 17, 2026?
+I want to establish a baseline understanding of how the volume of detainers has changed since President Donald Trump's return to the White House. This will help us get a sense of what a "normal" period is like under this new administration. Second, and what gets our hypothesis more directly: was there a last push in the weeks before Maryland's 287(g) ban on February 17, 2026?
 
 The first thing I did here is a broad pre/post-inauguration t-test on monthly counts. Then I did a year-over-year comparison window around the ban date as well as an adjacent two-week test to see if detainers accelerated in the final stretch before the ban.
 
@@ -304,17 +402,17 @@ cat("Prior 2-week daily mean:", round(mean(prior_2wk), 1), "\n")
 print(adj_test)
 ```
 
-Together these tell a pretty clear story. The Trump surge is real. ICE was issuing about 41% more detainers per month after the inauguration than before (187 vs. 133/month, p = 0.007, Cohen's d = 1.137). It is important to note that the number of detainers has dropped since peaking in the early months of the administration.
+The Trump surge is real. ICE was issuing about 41% more detainers per month after the inauguration than before (187 vs. 133/month, p = 0.007, Cohen's d = 1.137). We should note that the detainer numbers have dropped since peaking in the early months of the administration.
 
 I'd take that to my editor without hesitation. But the "last push" hypothesis doesn't hold.
 
 The year-over-year comparison goes the wrong direction: the four weeks before the 2026 ban actually had fewer daily detainers than the same stretch in 2025 (4.6 vs. 7.5/day, p = 0.0003).
 
-If I had to chalk this up to something, I'd say that this is a continuation of the "Trump surge" idea since there was such a big focus on ramping up enforcement efforts particularly in the first 100 days of the administration. Because of that context, I would say this text is flawed.
+If I had to chalk this up to something, I'd say that this is a continuation of the "Trump surge" idea since there was such a big focus on ramping up enforcement efforts particularly in the first 100 days of the administration.
 
-What I believe to be the most accurate test for our hypothesis showed that the final two weeks before the ban didn't spike relative to the two weeks just before them (5.2 vs. 3.9/day, p = 0.195). (I wonder if this would hold true if we increased our time allotted to say 4 weeks.)
+What I believe to be the most accurate test for our hypothesis showed that the final two weeks before the ban were slightly higher than the two weeks just before them (5.2 vs. 3.9/day), which actually goes in the direction of a last push. But the difference isn't statistically significant (p = 0.195), so I can't call it a confirmed spike. I wonder if this would hold at a longer window, say four weeks instead of two.
 
-What actually happened is ICE reached a new elevated normal sometime in 2025 and stayed there — the ban date wasn't a deadline that accelerated anything.
+What actually happened is ICE reached a new elevated normal sometime in 2025 and stayed there. The ban date wasn't a deadline that accelerated anything in a statistically meaningful way.
 
 ------------------------------------------------------------------------
 
@@ -379,11 +477,178 @@ cat("VA out-of-state rate (post-first):", round(va_oos / va_n * 100, 1), "%\n")
 
 The hypothesis holds. Fourteen percent of people who started in the Baltimore AOR later showed up in a different AOR's detention records, basically double the 7.2% rate for Virginia (χ² = 52.07, p \< 5.4×10⁻¹³).
 
-I think this tracks with what we know about Maryland's detention infrastructure, or the lack of it. There are no contracted ICE detention facilities in Maryland people get booked into the Baltimore or Salisbury hold rooms and then, when they need to be held longer, they go somewhere else. That is the effect that a 2021 ban on having civil immigration detention facilities in the state, a crackdown on both intergovernmental agreements that existed with a few county agencies and also private corporations.
+I think this tracks with what we know about Maryland's lack of detention infrastructure. There are no contracted ICE detention facilities in the state, instead people get booked into the Baltimore or Salisbury hold rooms and then, when they need to be held longer, they go somewhere else. That is the effect that a 2021 ban on having civil immigration detention facilities in the state, a crackdown on both intergovernmental agreements that existed with a few county agencies and also private corporations.
 
 Virginia has more in-state capacity so more of those detention stays actually stay in Virginia. You can see it in the cross-stay pattern: Maryland hold-room stays close, and the same person turns up in ICE records in a different AOR.
 
-We shoudl defintely still note that because the Washington AOR does cover DC some of the cross-AOR moves in our comparison might not be actually crossing state lines. That also applies to subsequent detention records include re-arrests after someone was released, not just direct facility transfers.
+We should definitely still note that because the Washington AOR does cover DC some of the cross-AOR moves in our comparison might not be actually crossing state lines. That also applies to subsequent detention records include re-arrests after someone was released, not just direct facility transfers.
+
+Derek flagged something worth testing here. A cross-AOR appearance for the same person doesn't necessarily mean they were transferred while in custody — it could also be that they got released from the Baltimore AOR and then got re-arrested somewhere else later. If Maryland detainees cycle through faster than Virginia detainees on average, they'd have more chances to rack up subsequent stay records from re-arrests. That would inflate Maryland's cross-AOR rate even if the infrastructure explanation isn't the whole story.
+
+The way to check is to look at the time gap between when someone's Baltimore stay ended and when the next out-of-AOR stay started. Short gap means they were probably still in custody and got transferred. Long gap points more toward a release and re-arrest cycle.
+
+```{r idea2-timegap}
+gap_check <- detentions |>
+  inner_join(balt_anchor, by = "unique_identifier") |>
+  filter(stay_book_in_date_time > balt_end,
+         book_in_aor != "Baltimore Area of Responsibility") |>
+  mutate(gap_days = as.numeric(difftime(stay_book_in_date_time, balt_end, units = "days"))) |>
+  group_by(unique_identifier) |>
+  slice_min(stay_book_in_date_time, n = 1) |>
+  ungroup()
+
+summary(gap_check$gap_days)
+
+cat("Within 3 days (likely transfer):", round(mean(gap_check$gap_days <= 3, na.rm = TRUE) * 100, 1), "%\n")
+cat("Within 7 days:", round(mean(gap_check$gap_days <= 7, na.rm = TRUE) * 100, 1), "%\n")
+cat("Within 30 days:", round(mean(gap_check$gap_days <= 30, na.rm = TRUE) * 100, 1), "%\n")
+cat("More than 30 days (possible re-arrest):", round(mean(gap_check$gap_days > 30, na.rm = TRUE) * 100, 1), "%\n")
+```
+
+Nobody shows up within 3 days. Only 14.5% within a week. The median gap is 247 days, which is 8 months. Three quarters of the cross-AOR appearances happen more than 30 days after the Baltimore stay ended. That's not a transfer pattern. That's a re-arrest pattern.
+
+So the 14% figure I reported is mostly measuring people who got released from Maryland and later got picked up somewhere else, not people being shipped directly to out-of-state facilities while still in custody. I need a cleaner way to isolate actual transfers.
+
+The codebook doesn't have a dedicated transfer flag, but the parquet has a `detention_release_reason` field on each stay. If someone's Baltimore stay ended with a transfer-type release reason rather than a community release, removal, or bond, that's evidence of continuous custody. I can use that to filter the analysis down to people who were actually transferred rather than re-arrested.
+
+```{r idea2-release-reasons}
+anchor_with_release <- md_detentions |>
+  group_by(unique_identifier) |>
+  slice_min(stay_book_in_date_time, n = 1) |>
+  ungroup() |>
+  select(unique_identifier, balt_end = stay_book_out_date_time, detention_release_reason)
+
+anchor_with_release |>
+  filter(unique_identifier %in% gap_check$unique_identifier) |>
+  count(detention_release_reason, sort = TRUE)
+```
+
+Of the people who showed up in another AOR, 50 left on recognizance and 26 were placed on supervision before their next detention record. Those are community releases, not transfers. Only 32 were listed as "Transferred" — that's the group actually in continuous custody. The 18 U.S. Marshals handoffs are harder to read; it could be a prosecution transfer that stayed in the custody chain, or it could be a separate event entirely.
+
+So the cleaner transfer rate uses just the 32 "Transferred" cases as the numerator. I'll filter on that and re-run the prop test against Virginia to see if the infrastructure gap holds once we're actually measuring transfers.
+
+```{r idea2-transfer-clean}
+md_oos_clean <- detentions |>
+  inner_join(
+    anchor_with_release |>
+      filter(str_detect(tolower(detention_release_reason), "transfer")),
+    by = "unique_identifier"
+  ) |>
+  filter(stay_book_in_date_time > balt_end,
+         book_in_aor != "Baltimore Area of Responsibility") |>
+  pull(unique_identifier) |>
+  n_distinct()
+
+va_anchor_release <- va_detentions |>
+  group_by(unique_identifier) |>
+  slice_min(stay_book_in_date_time, n = 1) |>
+  ungroup() |>
+  select(unique_identifier, va_end = stay_book_out_date_time, detention_release_reason)
+
+va_oos_clean <- detentions |>
+  inner_join(
+    va_anchor_release |>
+      filter(str_detect(tolower(detention_release_reason), "transfer")),
+    by = "unique_identifier"
+  ) |>
+  filter(stay_book_in_date_time > va_end,
+         book_in_aor != "Washington Area of Responsibility") |>
+  pull(unique_identifier) |>
+  n_distinct()
+
+cat("MD direct-transfer rate:", round(md_oos_clean / md_n * 100, 1), "%\n")
+cat("VA direct-transfer rate:", round(va_oos_clean / va_n * 100, 1), "%\n")
+
+prop.test(c(md_oos_clean, va_oos_clean), c(md_n, va_n))
+```
+
+The infrastructure story holds, but the numbers are much smaller than the original 14% vs. 7.2% suggested. The direct-transfer rate for Maryland is 3.4%, compared to 0.4% for Virginia. The gap is statistically significant (χ² = 101.29, p < 2.2×10⁻¹⁶) and the 95% confidence interval for the difference in rates runs from 1.8 to 4.3 percentage points.
+
+In absolute terms, the gap is about 3 percentage points instead of 7. But proportionally, Maryland detainees are being transferred directly to out-of-state facilities at about 8.5 times the rate of Virginia detainees. That's a real effect and it fits the infrastructure explanation: Maryland has no contracted long-term ICE facilities, so people who need to be held longer get shipped out. Virginia still has in-state capacity, so fewer people need to go anywhere.
+
+The original 14% figure wasn't wrong exactly — it just wasn't measuring what I said it was measuring. Most of it was re-arrest activity, not transfers. The cleaner number is 3.4%.
+
+------------------------------------------------------------------------
+
+### Idea 2 — Validation using raw stint-level data
+
+The parquet approach gets us close, but I want to check against the raw xlsx files directly. The raw detention files have one row per stint — a continuous stay at a single facility. That means if someone was transferred from a Baltimore AOR hold room to a facility in another AOR while still in custody, it shows up as two consecutive stint records for the same person with the book-out date of the first matching (or nearly matching) the book-in date of the second.
+
+FY25 and FY26 together are about 100MB, which loads fine. I'll use those two years to look for consecutive cross-AOR stints with no gap between them as the strictest possible measure of in-custody transfers.
+
+```{r load-stints}
+# Raw xlsx files are too large to host on GitHub (FY25 = 67MB, FY26 = 33MB).
+# Path points to a local copy. To reproduce, download from deportationdata.org
+# (FOIA 2026-ICLI-00005) and update raw_det_path to match your local directory.
+# Person identifier in raw files is anonymized_identifier, not unique_identifier.
+raw_det_path <- "/Users/raphaelromeroruiz/GitHub/md_fy25_fy26_ice_arrests/data/raw/2026-ICLI-00005_Detentions_Redacted/"
+
+stints_recent <- bind_rows(
+  read_excel(paste0(raw_det_path, "2026-ICLI-00005_Detentions_FY25_20260311_Redacted.xlsx"), skip = 6),
+  read_excel(paste0(raw_det_path, "2026-ICLI-00005_Detentions_FY26_20260311_Redacted.xlsx"), skip = 6)
+) |>
+  clean_names() |>
+  mutate(
+    book_in_date_time  = as.POSIXct(book_in_date_time),
+    book_out_date_time = as.POSIXct(book_out_date_time)
+  )
+
+cat("Total stint records:", nrow(stints_recent), "\n")
+stints_recent |> count(book_in_aor, sort = TRUE) |> head(10)
+```
+
+```{r stints-transfer-check}
+# For each person, find stints in Baltimore AOR where the next stint
+# (within 3 days) is in a different AOR — that's a direct in-custody transfer
+md_consecutive <- stints_recent |>
+  arrange(anonymized_identifier, book_in_date_time) |>
+  group_by(anonymized_identifier) |>
+  mutate(
+    next_aor     = lead(book_in_aor),
+    next_book_in = lead(book_in_date_time),
+    gap_days     = as.numeric(difftime(next_book_in, book_out_date_time, units = "days"))
+  ) |>
+  ungroup() |>
+  filter(
+    book_in_aor == "Baltimore Area of Responsibility",
+    !is.na(next_aor),
+    next_aor != "Baltimore Area of Responsibility",
+    gap_days <= 3
+  )
+
+va_consecutive <- stints_recent |>
+  arrange(anonymized_identifier, book_in_date_time) |>
+  group_by(anonymized_identifier) |>
+  mutate(
+    next_aor     = lead(book_in_aor),
+    next_book_in = lead(book_in_date_time),
+    gap_days     = as.numeric(difftime(next_book_in, book_out_date_time, units = "days"))
+  ) |>
+  ungroup() |>
+  filter(
+    book_in_aor == "Washington Area of Responsibility",
+    !is.na(next_aor),
+    next_aor != "Washington Area of Responsibility",
+    gap_days <= 3
+  )
+
+md_n_stint   <- stints_recent |> filter(book_in_aor == "Baltimore Area of Responsibility") |> pull(anonymized_identifier) |> n_distinct()
+md_oos_stint <- n_distinct(md_consecutive$anonymized_identifier)
+
+va_n_stint   <- stints_recent |> filter(book_in_aor == "Washington Area of Responsibility") |> pull(anonymized_identifier) |> n_distinct()
+va_oos_stint <- n_distinct(va_consecutive$anonymized_identifier)
+
+cat("MD consecutive-transfer rate (FY25-26):", round(md_oos_stint / md_n_stint * 100, 1), "%\n")
+cat("VA consecutive-transfer rate (FY25-26):", round(va_oos_stint / va_n_stint * 100, 1), "%\n")
+
+prop.test(c(md_oos_stint, va_oos_stint), c(md_n_stint, va_n_stint))
+```
+
+If we are just looking at FY25 and FY26, 93.5% of people booked in the Baltimore AOR had their next stint in a different AOR within 3 days. For Virginia it's 66.2%. The gap is 27 percentage points and the prop test is significant at any threshold (p < 2.2×10⁻¹⁶).
+
+The 93.5% figure makes sense once you think about what Baltimore AOR detention actually looks like. There are no contracted long-term ICE facilities in Maryland. Everyone who gets booked goes into the Baltimore or Salisbury hold rooms, which are short-term spaces. Almost all of them get sent somewhere else within a few days. Virginia has actual in-state detention capacity, so about a third of its detainees stay in-state for their next stint.
+
+This is a stronger result than either of the parquet-based approaches and it measures the right thing directly: consecutive stints at facilities in different AORs with no meaningful gap. The infrastructure gap is real.
 
 ## Conclusions
 
@@ -400,3 +665,56 @@ Maryland detainees show up in other AOR detention records at nearly double the r
 Virginia keeps more of its detained population in state.
 
 One thing I'd do to strengthen both of these analysis is start with the arrest data frame as that is a suppose to be a record of all arrests in a given place (although I have already seen where someone has every other kind of record - encounter, detainer, detention - but no arrest record which is a big problem). Starting with this population group gives us the most reliable figures down the analysis chain.
+
+------------------------------------------------------------------------
+
+## Story Pitch
+
+### Main Findings
+
+*Detainer story* 
+
+The detainer surge story is the more straightforward one. ICE went from about 133 detainers a month in Maryland during the Biden era to 187 after inauguration, a 41% jump, p = 0.007, Cohen's d = 1.137.
+
+That's about as clean as a before-and-after result gets. 
+
+The "last push before the ban" angle I originally expected doesn't hold. Detainers were actually lower in the final weeks before Maryland's 287(g) ban than in the same stretch the year before. What happened is ICE established a new normal sometime in 2025 and sat there. The story is the sustained surge, not a deadline scramble.
+
+*Transfer story*
+
+The transfer rate story is the one I find more interesting to report on, and the three approaches I ran converge on the same conclusion with increasing clarity. 
+
+The first pass (14% vs. 7.2% using parquet stay records) was mostly picking up re-arrests, not transfers. The second pass filtered on "Transferred" release reasons and got 3.4% vs. 0.4% — real but smaller. The clearest result comes from the raw FY25–FY26 stint data: 93.5% of people booked in the Baltimore AOR had their next stint in a different AOR within 3 days, compared to 66.2% in Virginia.
+
+That 27-point gap measured directly at the stint level is the strongest evidence for the infrastructure story. Maryland has no contracted long-term ICE facilities, so almost everyone who gets booked there gets sent somewhere else immediately.
+
+### Potential Problems
+
+The re-arrest ambiguity turned out to be real. The 14% figure was mostly picking up people who got released from Maryland and later got re-arrested somewhere else, not people being shipped to out-of-state facilities while still in custody. The median gap between a Baltimore stay and the next out-of-AOR stay was 247 days. That's not a transfer, that's a whole other arrest cycle.
+
+The release reason filter (3.4% vs. 0.4%) and the raw stint analysis (93.5% vs. 66.2%) both get at the same underlying pattern in different ways. Three passes, same direction. I'm not worried about the core finding. 
+
+The limitations I'd flag to an editor are smaller: the stint analysis only covers FY25–FY26, so I can't say whether this was also happening in FY23 or FY24. 
+
+The fix is straightforward — the FY23 and FY24 raw xlsx files are already in the project directory, so adding them to the `load-stints` chunk would extend the window to the full dataset. I just didn't do it here because each file is 150–230MB and the session was already memory-heavy. 
+
+And, separately, the Washington AOR includes DC and parts of the metro area, so some of the cross-AOR appearances in the Virginia comparison might not actually be crossing state lines.
+
+For Idea 1, the dataset cuts off in early 2026. We can see the surge, but we can't see what happened to detainer volume after the ban actually took effect. That's the most obvious hole in the story right now. It would be good to revisit this after the next data drop. 
+
+### Reporting Plan
+
+For the detainer surge:
+
+- Ask ICE's Baltimore field office whether there was any specific directive driving the post-inauguration increase in Maryland
+- Talk to immigration attorneys working with clients in county jails, who would have a ground-level read on whether the pace of detainer requests changed and how jails responded
+- Prince George's and Montgomery top the facility list; worth talking to county officials about how they handled the increase and what their posture was heading into the ban
+- FOIA any internal ICE communications related to enforcement priorities in Maryland for FY2025
+- MPIA the detainer forms themselves from local agencies — Prince George's and Montgomery jails would have received the actual I-247 forms, and those would show the specific individuals named, the alleged criminal history ICE cited, and whether the jail honored or declined each one
+
+For the transfer rate story:
+
+- Use the unique identifiers to try to identify specific individuals who were transferred — with additional records, some cases may be reportable
+- Legal organizations like CASA or the ACLU of Maryland likely have clients who were held in Baltimore or Salisbury and then transferred. Those are the people to talk to
+- FOIA the intergovernmental agreements and transport contracts that govern where Baltimore-AOR detainees go when they need longer holds
+- Ask Maryland legislators who pushed the 2021 detention ban whether they tracked where detainees were being sent afterward
