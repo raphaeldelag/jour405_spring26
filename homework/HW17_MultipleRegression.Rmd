@@ -26,9 +26,9 @@ head(md_turnout)
 
 Before building our model, let's explore the data to understand the variables and their relationships. Examine the correlation matrix to see how the independent variables relate to each other and to the dependent variable (voter turnout). Which variables seem to be correlated? Are there any that are not correlated at all? Also look at the multiple scatterplots. Which variables seem to have a linear relationship with the dependent variable? Which do not?
 
-The strongest correlates of turnout are median_age (positive) and pct_white (positive), and both hold up in the scatterplots with reasonably clean linear trends. Income and pct_bachelors_higher both track positively with turnout, but they also track tightly with each other, which is a real problem for any model trying to isolate either one's effect. pct_unemployed runs negative with turnout, though the relationship is noisy. Population is the weakest of the bunch, with the scatterplot basically flat until you hit the big urban outliers like Baltimore City and Prince George's County.
+pct_unemployed is the strongest correlate of turnout at -0.74 — that's the biggest circle on the corrplot and it's not close. pct_white comes in second at 0.69, median_age third at 0.50, income fourth at 0.45. pct_bachelors_higher (0.30) and population (-0.39) are the weakest of the group. The scatterplots back this up: pct_unemployed has a steep, clean negative trend, pct_white has a clear positive one, and median_age tracks fairly linearly. Income trends positive but with more scatter, and population is mostly flat until the two big urban outliers drag the line down.
 
-The plots I'd trust most going into a model are median_age and pct_white. The ones I'd be skeptical of are income and pct_bachelors_higher together, because they're measuring overlapping things.
+The collinearity concern is real but it's not between income and pct_unemployed — it's between income and pct_bachelors_higher, which correlate at 0.75. Those two are measuring too much of the same thing. I'd be skeptical of running both in the same model.
 
 
 ```{r}
@@ -91,9 +91,9 @@ The coefficients tell us the estimated effect of each independent variable on th
 
 Examine the output of the model, checking the coefficients, residuals, and overall model fit. How well does this multiple variable model predict turnout? Do any of the variables seem to be insignificant? Is this a useful model, based on what you've seen? Why?
 
-With six predictors and only 24 observations, I expected a lot of noise, and that's what the model delivers. Several variables are not statistically significant, and income and pct_bachelors_higher likely absorb each other's variance because they measure such similar things. The adjusted R-squared tells a more honest story than the raw R-squared here, and with this many predictors crammed into 24 counties, it will be noticeably lower. The coefficients for median_age and pct_white are probably the most reliable; the others I'd treat with skepticism.
+The adjusted R-squared is 0.80 against a raw of 0.85. That's not the overfitting mess I expected with six predictors and 24 counties. Three variables don't clear the bar: population (p=0.78), pct_bachelors_higher (p=0.84), and pct_unemployed (p=0.16). Income (p=0.005), pct_white (p=0.012), and median_age (p=0.04) are the ones that hold.
 
-It's not a useless model, but I wouldn't publish a story off it as-is. The sample is too small and too many variables are tangled up with each other to isolate anything cleanly. I'd use this as a starting point to figure out which two or three variables are actually doing the work.
+pct_unemployed at p=0.16 is the most interesting result in this output. It had the strongest bivariate correlation with turnout at -0.74 and it's insignificant in the full model. That's not a weak variable. That's a variable whose variance is already covered by pct_white, which it correlates with at -0.59. pct_bachelors_higher does the same thing: income absorbs it and it falls to p=0.84. I'd cut both and build from the three that held.
 
 ```{r}
 # Build initial model with all predictors
@@ -107,9 +107,9 @@ summary(initial_model)
 
 Create three alternative models by adding or removing variables to see if we can improve the model's performance. Turnout will always be the dependent variable, but you should alter the independent variables by removing or adding some. Then compare the models using adjusted R-squared values. Are any of the models significantly better than the others?
 
-Model 2 drops income to deal with the overlap between income and education — they were measuring too similar a thing. Model 3 goes further and keeps only the three variables that had the cleanest scatterplot relationships: median_age, pct_white, and pct_unemployed. Model 4 swaps pct_white out for pct_bachelors_higher to test whether education predicts better than race once age and unemployment are already in.
+Model 2 drops income to test whether education is the more useful of the two collinear variables or whether income was carrying the real weight. Model 3 goes down to median_age, pct_white, and pct_unemployed, the three that plotted cleanest against turnout. Model 4 swaps pct_white for pct_bachelors_higher to see if education predicts better than race with age and unemployment already in.
 
-If Model 3's adjusted R-squared comes out near the full model's, that's a cleaner, more usable result than six variables that undercut each other. A simpler model I can actually explain is more useful for a story than a technically richer one I can't. My first call after this would be to a Maryland political scientist to ask whether the age relationship reflects who lives in these counties or how different age cohorts actually turn out.
+The full model wins at 0.80. Model 2 drops to 0.70, Model 3 to 0.62, Model 4 to 0.60. Dropping income alone cost 10 points of adjusted R-squared. That's not collinearity noise. That's income doing real predictive work that nothing else replaces. In Model 4, once income and pct_white are both out, pct_unemployed shoots to p=0.0003. That's the suppression flipping. The variables that were absorbing unemployment's variance in the full model are gone and it finally has room. I'd take the full model to my editor.
 
 ```{r}
 # Model 2 - drop income to remove multicollinearity with education
@@ -150,4 +150,6 @@ ggplot(model_comparison, aes(x = reorder(Model, Adjusted_R_squared), y = Adjuste
 
 Without using the words "multiple regression model", describe how you could use this analysis to cover an election or voter participation story.
 
-ANSWER HERE
+The analysis points to a few counties worth calling first. Baltimore City at 0.58 and Prince George's County at 0.66 are both underperforming what their income and pct_white values would predict, which is a story about something structural that the demographic variables aren't capturing. That gap between predicted and actual turnout is where I'd start reporting.
+
+The age relationship also gives me a frame: Maryland's oldest-skewing counties, places like Talbot and Kent, are consistently outperforming the rest of the state. I'd want to know whether that's older residents voting at higher rates or something about how those communities are organized. Those are two very different stories. My first calls would be to local election administrators in both the high-performing and the underperforming counties to find out what, if anything, they're actually doing differently.
