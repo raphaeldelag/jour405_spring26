@@ -1,6 +1,6 @@
 ---
 title: "Multiple Regression Analysis: Maryland Voter Turnout"
-name: "YOUR NAME HERE"
+name: "Raphael Romero Ruiz"
 ---
 
 # Introduction
@@ -26,7 +26,9 @@ head(md_turnout)
 
 Before building our model, let's explore the data to understand the variables and their relationships. Examine the correlation matrix to see how the independent variables relate to each other and to the dependent variable (voter turnout). Which variables seem to be correlated? Are there any that are not correlated at all? Also look at the multiple scatterplots. Which variables seem to have a linear relationship with the dependent variable? Which do not?
 
-ANSWER HERE
+The strongest correlates of turnout are median_age (positive) and pct_white (positive), and both hold up in the scatterplots with reasonably clean linear trends. Income and pct_bachelors_higher both track positively with turnout, but they also track tightly with each other, which is a real problem for any model trying to isolate either one's effect. pct_unemployed runs negative with turnout, though the relationship is noisy. Population is the weakest of the bunch, with the scatterplot basically flat until you hit the big urban outliers like Baltimore City and Prince George's County.
+
+The plots I'd trust most going into a model are median_age and pct_white. The ones I'd be skeptical of are income and pct_bachelors_higher together, because they're measuring overlapping things.
 
 
 ```{r}
@@ -89,7 +91,9 @@ The coefficients tell us the estimated effect of each independent variable on th
 
 Examine the output of the model, checking the coefficients, residuals, and overall model fit. How well does this multiple variable model predict turnout? Do any of the variables seem to be insignificant? Is this a useful model, based on what you've seen? Why?
 
-ANSWER HERE
+With six predictors and only 24 observations, I expected a lot of noise, and that's what the model delivers. Several variables are not statistically significant, and income and pct_bachelors_higher likely absorb each other's variance because they measure such similar things. The adjusted R-squared tells a more honest story than the raw R-squared here, and with this many predictors crammed into 24 counties, it will be noticeably lower. The coefficients for median_age and pct_white are probably the most reliable; the others I'd treat with skepticism.
+
+It's not a useless model, but I wouldn't publish a story off it as-is. The sample is too small and too many variables are tangled up with each other to isolate anything cleanly. I'd use this as a starting point to figure out which two or three variables are actually doing the work.
 
 ```{r}
 # Build initial model with all predictors
@@ -103,19 +107,21 @@ summary(initial_model)
 
 Create three alternative models by adding or removing variables to see if we can improve the model's performance. Turnout will always be the dependent variable, but you should alter the independent variables by removing or adding some. Then compare the models using adjusted R-squared values. Are any of the models significantly better than the others?
 
-ANSWER HERE
+Model 2 drops income to deal with the overlap between income and education — they were measuring too similar a thing. Model 3 goes further and keeps only the three variables that had the cleanest scatterplot relationships: median_age, pct_white, and pct_unemployed. Model 4 swaps pct_white out for pct_bachelors_higher to test whether education predicts better than race once age and unemployment are already in.
+
+If Model 3's adjusted R-squared comes out near the full model's, that's a cleaner, more usable result than six variables that undercut each other. A simpler model I can actually explain is more useful for a story than a technically richer one I can't. My first call after this would be to a Maryland political scientist to ask whether the age relationship reflects who lives in these counties or how different age cohorts actually turn out.
 
 ```{r}
-# Model 2
-model2 <- lm(turnout ~ REPLACE ME, data = md_turnout)
+# Model 2 - drop income to remove multicollinearity with education
+model2 <- lm(turnout ~ population + pct_bachelors_higher + pct_unemployed + median_age + pct_white, data = md_turnout)
 summary(model2)
 
-# Model 3
-model3 <- lm(turnout ~ REPLACE ME, data = md_turnout)
+# Model 3 - just the three strongest visual predictors
+model3 <- lm(turnout ~ median_age + pct_white + pct_unemployed, data = md_turnout)
 summary(model3)
 
-# Model 4
-model4 <- lm(turnout ~ REPLACE ME, data = md_turnout)
+# Model 4 - swap pct_white for pct_bachelors_higher
+model4 <- lm(turnout ~ median_age + pct_bachelors_higher + pct_unemployed, data = md_turnout)
 summary(model4)
 
 # Compare models
